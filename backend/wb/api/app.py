@@ -47,7 +47,7 @@ from wb.workspace.watch import Watch
 
 VERSION = __version__   # the version running (the four version spots agree; until 0.2.1 this said 0.1.0 always)
 SECRETS = ("tushare_token", "jquants_api_key", "deepseek_api_key", "openrouter_api_key", "feishu_webhook", "feishu_secret",
-           "tickflow_api_key", "tachibana_auth_id", "tachibana_key_file", "tachibana_url", "tachibana_key_pass", "github_token")
+           "tickflow_api_key", "tachibana_auth_id", "tachibana_key_file", "tachibana_url", "tachibana_key_pass")
 
 
 def _check_tachibana_url(v: str) -> str:

@@ -1,9 +1,9 @@
 # Windows 检查（只手动运行）：在 GitHub 的 Windows 机器上把后端按安装包里的样子打包（PyInstaller），做一个和 A 股一样大的
 # 模拟市场（packaging/bench_data.py，约 1200 万根日线），先一个进程算结构、再用进程池算、最后像「扫描」按钮那样扫一次
 # （packaging/scan_check.py）：每 5 秒记下走到哪、后端几个进程、占多少内存、机器还剩多少；超时算卡住，打出每个进程的线程栈。
-# 还查检查更新：本次运行自带的只读令牌存进 Windows 凭据管理器，读 GitHub 上最新发布的版本。
+# 还查一个密钥存进 Windows 凭据管理器、检查更新读到这个公开仓库最新发布的版本（不用令牌；还没有发布时 GitHub 说没有，也算答上了）。
 # 选了「测试」时另开两台 Windows 机器：一台跑后端全部测试，一台用真的 Electron 跑全部界面端到端测试（开发模式的后端，演示数据）。
-# 选了「自动更新」时另开一台：打一个版本号是 0.0.1 的安装包装上，在应用里点「更新到」，看它用本次运行的只读令牌下载 GitHub
+# 选了「自动更新」时另开一台：打一个版本号是 0.0.1 的安装包装上，在应用里点「更新到」，看它下载这个仓库
 # 上最新发布的安装包、和 SHA256SUMS.txt 核对、关掉自己、静默安装、重新打开，新版本的后端答得上来。
 # 安全规则同 build.yml：权限默认全关，只读检出；action 锁到提交；不用缓存、不用仓库密钥；依赖按锁文件装、不跑安装脚本。
 name: Windows 检查
@@ -62,10 +62,8 @@ jobs:
         run: |
           uv sync --group build
           uv run --group build pyinstaller packaging/wb.spec --noconfirm --distpath dist --workpath build
-      - name: 检查更新（令牌存进 Windows 凭据管理器，用它读 GitHub 上最新发布的版本）
+      - name: 密钥存进 Windows 凭据管理器；检查更新读 GitHub 上最新发布的版本
         working-directory: backend
-        env:
-          CHECK_GITHUB_TOKEN: ${{ github.token }}   # this run's own token: read-only (contents: read), gone when the run ends
         run: uv run python packaging/scan_check.py update dist\wb-backend\wb-backend.exe "$env:RUNNER_TEMP\upd"
       - name: 模拟市场（300 只、全尺寸 6000 只、一半 3000 只）
         if: inputs.scan
@@ -175,7 +173,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 45
     permissions:
-      contents: read   # the run's own token reads the releases: the app downloads the newest installer with it
+      contents: read   # the checkout; the app reads the public releases with no token
     steps:
       - name: Windows 上按仓库原样检出（不改行尾）
         run: git config --global core.autocrlf false
@@ -207,8 +205,6 @@ jobs:
             Select-Object DisplayName, DisplayVersion, InstallLocation | Format-List
       - name: 在应用里点「更新到」：下载、核对、关掉、静默安装、重新打开
         working-directory: desktop
-        env:
-          WB_SECRET_GITHUB_TOKEN: ${{ github.token }}   # this run's own token: read-only (contents: read), gone when the run ends
         run: |
           $installed = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "形研*" }
           $env:WB_UPDATE_APP = Join-Path $installed.InstallLocation "形研.exe"

@@ -89,9 +89,6 @@ function SecretRow({ name, label, hint, source, onSaved }: {
 /** The published source (AGPL §6): each release's tree under its tag there. */
 const SOURCE = "https://github.com/Ver-Max-33/xing_yan"
 
-const GITHUB_HINT = "仓库是私有的，读它的发布要一个只读令牌：GitHub → Settings → Developer settings → Fine-grained tokens → "
-  + "Generate new token，Repository access 只选 Ver-Max-33/xingyan，Permissions 里 Contents 选 Read-only。只存在本机钥匙串，只发给 api.github.com"
-
 /** 检查更新: the version running, what GitHub has published, and checking again. A newer one: in the installed app
  * 更新到 x.y.z (download, check, close, install, open again), with how far it is; run from the repository, its page. */
 function UpdateRow() {
@@ -113,13 +110,13 @@ function UpdateRow() {
           <span className="num shrink-0">当前 {u?.current ?? "…"}</span>
           <span className={cn("min-w-0", line.tone === "new" && "text-structure", line.tone === "warn" && "text-warning")}>· {line.text}</span>
           {u?.newer && u.url && !canInstall && <a href={u.url} target="_blank" rel="noreferrer" className="underline">打开发布页下载</a>}
-          {u?.token && <span className="num shrink-0 text-subtle-foreground">· {u.checked_at.slice(5, 16).replace("T", " ")} 查的</span>}
+          {u && <span className="num shrink-0 text-subtle-foreground">· {u.checked_at.slice(5, 16).replace("T", " ")} 查的</span>}
         </div>
         {canInstall && (
           <Button size="sm" disabled={busy} onClick={() => install.mutate()} data-testid="update-install">
             {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpCircle className="size-4" />}更新到 {u.latest}</Button>
         )}
-        <Button size="sm" variant="outline" disabled={again.isPending || !u?.token || busy} onClick={() => again.mutate()}>
+        <Button size="sm" variant="outline" disabled={again.isPending || busy} onClick={() => again.mutate()}>
           <RefreshCw className={cn("size-4", again.isPending && "animate-spin")} />检查更新</Button>
       </div>
       {dl && (
@@ -220,7 +217,6 @@ export default function SettingsPage() {
   const put = usePutSetting()
   const { data: secrets } = useQuery({ queryKey: ["secrets"], queryFn: endpoints.secrets })
   const { data: notify } = useNotify()
-  const qc = useQueryClient()
   const version = useUpdate().data?.current   // the backend's: the one running (wb.__version__)
   if (!settings) return null
   const set = (key: Parameters<typeof put.mutate>[0]["key"], value: string) => put.mutate({ key, value }, { onError: (e) => toast.error(String(e)) })
@@ -354,8 +350,6 @@ export default function SettingsPage() {
         {kind === "about" && <>
         <Section title="更新" hint="看 GitHub 上有没有发布新版本：打开应用时查一次，之后每 6 小时一次，有新版本时底部状态栏会提示。点「更新到 x.y.z」：下载这一版的安装包、和发布页上的 SHA256SUMS.txt 核对，然后关闭形研、安装、自动重新打开（Windows 大约半分钟）；正在跑的扫描会中断。从仓库运行的开发版不自己安装，git pull 后重新打开。">
           <UpdateRow />
-          <SecretRow name="github_token" label="GitHub 令牌" hint={GITHUB_HINT} source={secrets?.github_token}
-            onSaved={() => void checkUpdate(true).then((r) => qc.setQueryData(["update"], r))} />
         </Section>
         <Section title="关于与免责声明" className="border-b-0">
           <div className="flex flex-col gap-1 text-[0.8125rem] text-muted-foreground">

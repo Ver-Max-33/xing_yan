@@ -1,5 +1,5 @@
-// 下载并安装 (spec §3.3, 1.51): which downloaded installer the app may run, and how. The backend downloads it with your
-// GitHub token and checks it against the release's SHA256SUMS.txt (backend wb/update.py); main.js runs it once every
+// 下载并安装 (spec §3.3, 1.51): which downloaded installer the app may run, and how. The backend downloads it from the
+// public repository's release and checks it against the release's SHA256SUMS.txt (backend wb/update.py); main.js runs it once every
 // window has saved what it held and the backend has stopped. Kept apart from main.js so it can be tested without Electron.
 const path = require("node:path")
 

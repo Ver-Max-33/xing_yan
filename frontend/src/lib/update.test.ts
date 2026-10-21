@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { downloadLine, newerThan, type UpdateDownload, type UpdateInfo, updateChip, updateLine } from "./update"
 
-const base: UpdateInfo = { current: "0.1.0", token: true, installable: true, latest: null, newer: false, url: null, name: null,
+const base: UpdateInfo = { current: "0.1.0", installable: true, latest: null, newer: false, url: null, name: null,
   published_at: null, notes: null, error: null, checked_at: "2026-10-08T09:30:00" }
 const idle: UpdateDownload = { state: "idle", version: null, done: 0, total: 0, error: null }
 
@@ -10,8 +10,9 @@ describe("检查更新 in words", () => {
     expect(updateLine({ ...base, latest: "0.2.0", newer: true, published_at: "2026-10-09T08:00:00Z" }))
       .toEqual({ text: "有新版本 0.2.0（2026-10-09 发布）", tone: "new" })
     expect(updateLine({ ...base, latest: "0.1.0" })).toEqual({ text: "已是最新（GitHub 上最新的是 0.1.0）", tone: "ok" })
-    expect(updateLine({ ...base, error: "GitHub 令牌无效或过期：在设置里换一个" })).toEqual({ text: "GitHub 令牌无效或过期：在设置里换一个", tone: "warn" })
-    expect(updateLine({ ...base, token: false })).toEqual({ text: "还没配 GitHub 令牌：配好才能检查", tone: "muted" })
+    expect(updateLine({ ...base, error: "GitHub 上还没有发布的版本（草稿版不算）" }))
+      .toEqual({ text: "GitHub 上还没有发布的版本（草稿版不算）", tone: "warn" })
+    expect(updateLine({ ...base, token: false } as UpdateInfo).tone).not.toBe("muted")   // no token to wait for since 0.6.0
     expect(updateLine(undefined)).toEqual({ text: "检查中…", tone: "muted" })
   })
 })

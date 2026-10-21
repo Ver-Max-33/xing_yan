@@ -4,7 +4,7 @@
   3. the OS keychain via `keyring`                        (`wb secret set <name>`, 设置; a key the .env file or
                                                           the environment gives is changed there instead: set_secret)
 Known names: tushare_token, jquants_api_key, tickflow_api_key, deepseek_api_key, openrouter_api_key, feishu_webhook,
-feishu_secret, github_token (检查更新: the app's private repository's releases).
+feishu_secret. (github_token went with 0.6.0: 检查更新 reads a public repository.)
 
 The .env file accepts `KEY=value` or `KEY: value`; keys are matched loosely, so
 `TUSHARE_TOKEN=...`, `Tushare: ...`, `JQUANTS_API_KEY=...` and `J-Quants: ...` all work.
@@ -20,7 +20,7 @@ from keyring.errors import KeyringError
 from wb.files import move_into_place, tmp_for
 
 SERVICE = "stock-workbench"
-ALIASES = {"tushare": "tushare_token", "tusharetoken": "tushare_token", "github": "github_token", "githubtoken": "github_token",
+ALIASES = {"tushare": "tushare_token", "tusharetoken": "tushare_token",
            "jquants": "jquants_api_key", "jquantsapikey": "jquants_api_key", "jquantskey": "jquants_api_key",
            "tickflow": "tickflow_api_key", "tickflowapikey": "tickflow_api_key", "tickflowkey": "tickflow_api_key",
            "deepseek": "deepseek_api_key", "deepseekapikey": "deepseek_api_key", "deepseekkey": "deepseek_api_key",

@@ -1,6 +1,7 @@
-# 安装包（spec §3.3）：打 v* 标签时，在 Windows（x64）上打一个安装包，跑一遍安装包检查，建成草稿版发布（附 SHA256SUMS.txt），
-# 在 GitHub 上看过再点发布；手动运行只打包、不发布，安装包在这次运行里留 1 天。macOS（Apple 芯片）只在手动运行时勾选才打
-# （10-17：你在 Windows 上装，macOS 的分钟按 10 倍计，两个安装包各留 3 天用完了这个月的 artifact 存储额度）。打标签时安装包
+# 安装包（spec §3.3）：打 v* 标签时，在 Windows（x64）上打一个安装包，跑一遍安装包检查，建成草稿版发布（附 SHA256SUMS.txt，
+# 说明的开头是标签自己的说明），在 GitHub 上看过再点发布；手动运行只打包、不发布，安装包在这次运行里留 1 天。macOS（Apple
+# 芯片）只在手动运行时勾选才打（用的人在 Windows 上装）。0.6.0 起只在公开仓库 Ver-Max-33/xing_yan 里跑（公开仓库不计分钟；
+# 私有仓库的标签什么也不打），标签由 scripts/publish-source.sh 带过去。打标签时安装包
 # 经缓存交给发布任务（缓存有自己的额度），发布任务按打包任务算出的 SHA256 核对，建好草稿版就删掉这条缓存。
 # 打包步骤就是 scripts/build-mac.sh、scripts/build-win.ps1。安全规则见 docs/security.md「安装包工作流」：
 # 权限默认全关，只有建草稿版那一步能写；action 锁到提交；不用缓存、不用密钥；依赖按锁文件装、不跑安装脚本。
@@ -169,11 +170,16 @@ jobs:
           echo "$SUM  $NAME" | sha256sum -c -
           sha256sum xingyan-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
+          # what this version brings, briefly: the tag's own message (scripts/publish-source.sh carries the private tag's)
+          sha=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq 'select(.object.type == "tag") | .object.sha')
+          about=$(if [[ -n "$sha" ]]; then gh api "repos/$GH_REPO/git/tags/$sha" --jq .message; fi)
           mac=""
           if compgen -G "xingyan-*.dmg" > /dev/null; then
             mac='- macOS（Apple 芯片）：第一次打开时，在"系统设置 → 隐私与安全性"里点"仍要打开"。'
           fi
           gh release create "$TAG" xingyan-* SHA256SUMS.txt --draft --verify-tag --title "形研 $TAG" --notes-file - <<EOF
+          $about
+
           形研 ${TAG#v} 的安装包，还没有签名：
 
           $mac

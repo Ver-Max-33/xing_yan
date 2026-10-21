@@ -1,6 +1,6 @@
-"""检查更新: the newest published release of the app's GitHub repository against the version running — read with your
-token (the repository is private), sent to api.github.com and nowhere else; the installed app downloads the new
-installer on your click and checks it against the release's SHA256SUMS.txt before it is run."""
+"""检查更新: the newest published release of the app's public GitHub repository (Ver-Max-33/xing_yan) against the
+version running — asked without any token; the installed app downloads the new installer on your click and checks it
+against the release's SHA256SUMS.txt before it is run."""
 import hashlib
 import json
 import threading
@@ -28,7 +28,7 @@ def github(status: int, body: dict | None = None, seen: list | None = None):
 @pytest.fixture(autouse=True)
 def fresh(monkeypatch):
     monkeypatch.setattr(update, "_kept", None)
-    monkeypatch.setenv("WB_SECRET_GITHUB_TOKEN", "github_pat_test")
+    monkeypatch.delenv("WB_GITHUB_API", raising=False)
 
 
 def test_the_version_running_is_the_one_every_package_says():
@@ -38,15 +38,32 @@ def test_the_version_running_is_the_one_every_package_says():
     assert project == __version__
 
 
-def test_a_newer_release_is_said_with_its_page_and_the_request_carries_the_token_to_github_only():
+def test_a_newer_release_is_said_with_its_page_asked_of_the_public_repository_without_a_token():
     seen = []
-    r = update.check(transport=github(200, {"tag_name": "v9.0.0", "name": "形研 v9.0.0", "html_url": "https://github.com/Ver-Max-33/xingyan/releases/tag/v9.0.0",
+    r = update.check(transport=github(200, {"tag_name": "v9.0.0", "name": "形研 v9.0.0", "html_url": "https://github.com/Ver-Max-33/xing_yan/releases/tag/v9.0.0",
                                             "published_at": "2026-10-09T08:00:00Z", "body": "改了这些"}, seen))
-    assert (r["current"], r["latest"], r["newer"], r["token"], r["error"]) == (__version__, "9.0.0", True, True, None)
+    assert (r["current"], r["latest"], r["newer"], r["error"]) == (__version__, "9.0.0", True, None) and "token" not in r
     assert r["url"].endswith("/v9.0.0") and r["notes"] == "改了这些" and r["published_at"] == "2026-10-09T08:00:00Z"
     [req] = seen
-    assert str(req.url) == "https://api.github.com/repos/Ver-Max-33/xingyan/releases/latest"
-    assert req.headers["authorization"] == "Bearer github_pat_test" and "github_pat_test" not in json.dumps(r)
+    assert str(req.url) == "https://api.github.com/repos/Ver-Max-33/xing_yan/releases/latest"
+    assert "authorization" not in req.headers
+
+
+def test_a_github_token_kept_from_before_is_never_sent(monkeypatch):
+    # until 0.6.0 the releases were in a private repository read with a token of yours; one may still be kept, and
+    # scoped to that repository it is no use here — nothing is sent but the question
+    monkeypatch.setenv("WB_SECRET_GITHUB_TOKEN", "github_pat_old")
+    seen = []
+    assert update.check(transport=github(200, {"tag_name": "v9.0.0"}, seen))["newer"] is True
+    assert "authorization" not in seen[0].headers
+
+
+def test_the_address_can_point_at_a_stand_in(monkeypatch):
+    # as WB_AI_BASE_URL does for the models: end-to-end tests point it at a closed port, so no test asks GitHub
+    monkeypatch.setenv("WB_GITHUB_API", "http://127.0.0.1:9")
+    seen = []
+    update.check(transport=github(200, {"tag_name": "v9.0.0"}, seen))
+    assert str(seen[0].url) == "http://127.0.0.1:9/repos/Ver-Max-33/xing_yan/releases/latest"
 
 
 def test_the_same_or_an_older_release_is_no_update():
@@ -54,7 +71,7 @@ def test_the_same_or_an_older_release_is_no_update():
     assert update.check(force=True, transport=github(200, {"tag_name": "v0.0.1"}))["newer"] is False
 
 
-@pytest.mark.parametrize(("status", "says"), [(401, "令牌无效"), (404, "还没有发布的版本"), (403, "稍后再试"), (500, "500")])
+@pytest.mark.parametrize(("status", "says"), [(404, "还没有发布的版本"), (403, "稍后再试"), (429, "稍后再试"), (500, "500")])
 def test_what_github_refused_is_said(status, says):
     r = update.check(transport=github(status))
     assert r["newer"] is False and r["latest"] is None and says in r["error"]
@@ -68,14 +85,6 @@ def test_a_tag_that_is_no_version_and_no_connection_are_said():
     assert "连不上 GitHub" in update.check(force=True, transport=httpx.MockTransport(down))["error"]
 
 
-def test_without_a_token_nothing_is_asked(monkeypatch):
-    monkeypatch.delenv("WB_SECRET_GITHUB_TOKEN")
-    monkeypatch.setattr(update, "get_secret", lambda name: None)
-    seen = []
-    r = update.check(transport=github(200, {"tag_name": "v9.0.0"}, seen))
-    assert seen == [] and (r["token"], r["newer"], r["error"]) == (False, False, None)
-
-
 def test_a_check_stands_six_hours_unless_asked_again():
     seen = []
     t = github(200, {"tag_name": "v9.0.0"}, seen)
@@ -86,20 +95,9 @@ def test_a_check_stands_six_hours_unless_asked_again():
     assert len(seen) == 2
 
 
-def test_a_token_set_after_a_check_without_one_is_used_at_once(monkeypatch):
-    # no token: nothing asked and nothing kept — the next check, once you have saved one, asks GitHub
-    token = {"v": None}
-    monkeypatch.setattr(update, "get_secret", lambda name: token["v"])
-    seen = []
-    t = github(200, {"tag_name": "v9.0.0"}, seen)
-    assert update.check(transport=t)["token"] is False
-    token["v"] = "github_pat_new"
-    assert update.check(transport=t)["newer"] is True and len(seen) == 1
-
-
 # ---- 下载并安装: the installer of the newest release for this system, checked against the release's SHA256SUMS.txt ----
 
-API = "https://api.github.com/repos/Ver-Max-33/xingyan"
+API = "https://api.github.com/repos/Ver-Max-33/xing_yan"
 EXE = b"MZ the installer " * 1000
 
 
@@ -155,9 +153,7 @@ def test_the_installer_is_downloaded_checked_against_the_release_sums_and_kept_w
     assert s["file"] == str(windows_app / "xingyan-9.0.0-win-x64.exe")
     assert [p.name for p in windows_app.iterdir()] == ["xingyan-9.0.0-win-x64.exe"]   # nothing half-written left
     assert (windows_app / "xingyan-9.0.0-win-x64.exe").read_bytes() == EXE
-    # the token goes to GitHub's API only: the file's storage (another host, a signed link) never sees it
-    assert all(r.headers.get("authorization") == "Bearer github_pat_test" for r in seen if r.url.host == "api.github.com")
-    assert all("authorization" not in r.headers for r in seen if r.url.host != "api.github.com")
+    assert all("authorization" not in r.headers for r in seen)   # a public repository: no token anywhere
     assert fetched == ["SHA256SUMS.txt", "xingyan-9.0.0-win-x64.exe"]   # this system's installer only
 
 
@@ -184,14 +180,11 @@ def test_a_release_with_nothing_to_install_says_why_and_downloads_nothing(window
     assert "xingyan-9.0.0-win-x64.exe" not in fetched
 
 
-def test_without_a_token_or_a_connection_the_download_says_so(windows_app, monkeypatch):
+def test_without_a_connection_the_download_says_so(windows_app):
     def down(request):
         raise httpx.ReadTimeout("stalled")
     update.download(httpx.MockTransport(down))
     assert "下载断了" in finished()["error"]
-    monkeypatch.setattr(update, "get_secret", lambda name: None)
-    update.download(release()[0])
-    assert "令牌" in finished()["error"]
 
 
 def test_a_release_file_github_will_not_hand_over_is_named(windows_app):
@@ -244,7 +237,7 @@ def test_a_run_from_the_repository_downloads_nothing_and_the_state_is_there_to_r
 
     from wb.api.app import create_app
     monkeypatch.setattr(update, "_dl", dict(update.IDLE))
-    monkeypatch.setattr(update, "get_secret", lambda name: None)   # no token: the check below asks nothing
+    monkeypatch.setenv("WB_GITHUB_API", "http://127.0.0.1:9")   # the check below asks nobody
     c, h = TestClient(create_app(tmp_path, token="t")), {"X-WB-Token": "t"}
     r = c.post("/api/update/download", headers=h)
     assert r.status_code == 409 and "git pull" in r.json()["detail"]

@@ -62,7 +62,7 @@ test("a new version: the status bar says so and 设置 → 关于 updates it —
   const MB = 1048576
   let asked = 0
   await win.route(/\/api\/update(\?.*)?$/, (route) => route.fulfill({ json: {
-    current: "0.2.0", token: true, installable: true, latest: "9.9.9", newer: true, url: "https://github.com/Ver-Max-33/xingyan/releases/tag/v9.9.9",
+    current: "0.2.0", installable: true, latest: "9.9.9", newer: true, url: "https://github.com/Ver-Max-33/xingyan/releases/tag/v9.9.9",
     name: "形研 v9.9.9", published_at: "2026-10-11T00:00:00Z", notes: "这一版改了这些", error: null, checked_at: "2026-10-11T08:00:00" } }))
   await win.route(/\/api\/update\/download$/, (route) => {
     if (route.request().method() === "POST") asked += 1

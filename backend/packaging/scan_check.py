@@ -2,7 +2,7 @@
 
     python packaging/scan_check.py structures BACKEND_EXE DATA_DIR WORKERS [MINUTES]   # `wb structures` over CN
     python packaging/scan_check.py scan BACKEND_EXE DATA_DIR [MINUTES]                 # one scan as the 扫描 button runs it
-    python packaging/scan_check.py update BACKEND_EXE DATA_DIR                         # 检查更新, the token in the keychain
+    python packaging/scan_check.py update BACKEND_EXE DATA_DIR                         # 检查更新, a secret in the keychain
 
 Every 5 s: how far it is (a scan: which rule, which step, how many chunks), the backend's processes (how many, their
 memory) and the memory the machine has left. Past MINUTES (default 20) it counts as hung. A check that fails prints what
@@ -133,10 +133,10 @@ def scan(exe: str, data: str, minutes: float = 20) -> int:
 
 
 def update(exe: str, data: str) -> int:
-    """检查更新 as the app does it on this machine: the token kept in the system's keychain (Windows: Credential Manager)
-    through the settings' own endpoint, then the newest published release read from GitHub with it. The token is the
-    workflow's own (CHECK_GITHUB_TOKEN, read-only), taken out of the environment before the backend starts; never printed."""
-    token = os.environ.pop("CHECK_GITHUB_TOKEN", "")
+    """A secret kept in the system's keychain (Windows: Credential Manager) through the settings' own endpoint — a
+    stand-in Feishu signing secret, which sends nothing without a webhook — and 检查更新 as the app does it on this
+    machine: the public repository's newest release, asked without a token. Before the first release GitHub says it has
+    none, which is an answer too; a connection that fails is not."""
     proc, stacks = start([exe, "--data-dir", data, "serve", "--port", str(PORT)])
     ok = False
     try:
@@ -146,13 +146,12 @@ def update(exe: str, data: str) -> int:
                 break
             except OSError:
                 time.sleep(0.5)
-        keys = ("current", "token", "latest", "newer", "url", "error")
-        print("没有令牌时：", {k: call("/api/update?force=true")[k] for k in keys})
-        where = call("/api/secrets/github_token", "PUT", {"value": token})["github_token"] if token else None
-        print("令牌存到：", where)
+        where = call("/api/secrets/feishu_secret", "PUT", {"value": "check-" + os.urandom(8).hex()})["feishu_secret"]
+        print("密钥存到：", where)
         u = call("/api/update?force=true")
-        print("检查更新：", {k: u[k] for k in keys})
-        ok = where == "keychain" and u["token"] and u["error"] is None and u["latest"] is not None
+        print("检查更新：", {k: u[k] for k in ("current", "latest", "newer", "url", "error")})
+        answered = u["latest"] is not None or (u["error"] or "").startswith("GitHub 上还没有发布的版本")
+        ok = where == "keychain" and answered
     finally:
         stop(proc, stacks, not ok)
     print("检查更新正常" if ok else "检查更新不正常")

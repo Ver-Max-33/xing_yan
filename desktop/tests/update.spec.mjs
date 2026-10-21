@@ -1,7 +1,7 @@
 // 下载并安装 for real, on Windows (windows-check.yml, 自动更新): an installed old version (0.0.1) learns from GitHub that a
-// newer release is out; 更新到 x.y.z downloads that release's installer with the run's read-only token, checks it
+// newer release is out on the public repository; 更新到 x.y.z downloads that release's installer, checks it
 // against the release's SHA256SUMS.txt, closes the app, installs it silently and opens it again. Runs only there:
-//   WB_UPDATE_APP=<the installed 形研.exe> WB_SECRET_GITHUB_TOKEN=<a token that reads the releases> npx playwright test tests/update.spec.mjs
+//   WB_UPDATE_APP=<the installed 形研.exe> npx playwright test tests/update.spec.mjs
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
@@ -41,7 +41,7 @@ test("an old version updates itself to the newest release and opens again", asyn
   test.setTimeout(15 * 60_000)
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "wb-update-"))
   const app = await electron.launch({ executablePath: exe,
-    env: isolated(dataDir, { WB_SECRET_GITHUB_TOKEN: process.env.WB_SECRET_GITHUB_TOKEN ?? "" }) })
+    env: isolated(dataDir, { WB_GITHUB_API: "https://api.github.com" }) })   // the real releases
   const win = await app.firstWindow()
   await expect(win.getByText("形研", { exact: true })).toBeVisible({ timeout: 120_000 })
   expect((await win.evaluate(async () => (await fetch("/api/health")).json())).version).toBe("0.0.1")

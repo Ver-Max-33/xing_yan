@@ -1,5 +1,5 @@
-// 检查更新 (spec §3.3): the newest release published on GitHub against the version running (backend wb/update.py) —
-// read with your GitHub token, kept 6 hours. 下载并安装 (1.51): in the installed app, 更新到 x.y.z downloads that
+// 检查更新 (spec §3.3): the newest release published on the public GitHub repository against the version running
+// (backend wb/update.py) — no token needed, kept 6 hours. 下载并安装 (1.51): in the installed app, 更新到 x.y.z downloads that
 // release's installer, checks it against the release's SHA256SUMS.txt, closes the app and installs it; Windows opens
 // the app again when it is done (desktop main.js, update.js).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -9,7 +9,7 @@ import { desktop } from "@/app/platform"
 import { api } from "./api"
 
 export interface UpdateInfo {
-  current: string; token: boolean   // whether a token is set (never the token)
+  current: string
   installable: boolean              // the installed app (not one run from the repository): it installs a new version itself
   latest: string | null; newer: boolean; url: string | null; name: string | null; published_at: string | null
   notes: string | null; error: string | null; checked_at: string
@@ -47,7 +47,6 @@ export function useInstallUpdate() {
 /** What a check came to, in words: a newer release and its day, the latest running already, or why there is no answer. */
 export function updateLine(u: UpdateInfo | undefined): { text: string; tone: "new" | "ok" | "warn" | "muted" } {
   if (!u) return { text: "检查中…", tone: "muted" }
-  if (!u.token) return { text: "还没配 GitHub 令牌：配好才能检查", tone: "muted" }
   if (u.error) return { text: u.error, tone: "warn" }
   if (u.newer) return { text: `有新版本 ${u.latest}${u.published_at ? `（${u.published_at.slice(0, 10)} 发布）` : ""}`, tone: "new" }
   return { text: `已是最新（GitHub 上最新的是 ${u.latest}）`, tone: "ok" }

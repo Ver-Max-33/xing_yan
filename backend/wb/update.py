@@ -1,11 +1,12 @@
-"""检查更新: the newest published release of the app's own GitHub repository against the version running. The
-repository is private, so reading its releases takes a token of yours (secret github_token: a fine-grained token for
-this repository only, Contents read-only), sent to api.github.com and nowhere else; without one nothing is asked. A draft
-release (the build workflow makes one on a version tag) counts once you publish it.
+"""检查更新: the newest published release of the app's public GitHub repository (Ver-Max-33/xing_yan, where the build
+workflow makes the installers since 0.6.0) against the version running, asked without any token — a token kept from
+the private repository of before is never sent. A draft release (the build workflow makes one on a version tag) counts
+once you publish it. WB_GITHUB_API points the questions elsewhere, as WB_AI_BASE_URL does for the models (end-to-end
+tests: a closed port, so no test asks GitHub).
 
 下载并安装 (spec §3.3, 1.51): in the installed app, on your click, the release's installer for this system is downloaded
-(the same token; the file itself comes from GitHub's storage by a signed link, which never sees the token) and checked
-against the release's SHA256SUMS.txt; the app (desktop/main.js) then closes and runs it. Nothing is run here."""
+(from GitHub's storage by a signed link) and checked against the release's SHA256SUMS.txt; the app (desktop/main.js)
+then closes and runs it. Nothing is run here."""
 import hashlib
 import logging
 import os
@@ -21,10 +22,8 @@ import httpx
 
 from wb import __version__
 from wb.files import move_into_place
-from wb.secrets import get_secret
 
-REPO = "Ver-Max-33/xingyan"
-LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+REPO = "Ver-Max-33/xing_yan"
 KEEP = 6 * 3600   # a check stands this long (seconds); asking again (force) checks now
 NOTES = 2000      # the release notes, at most this many characters
 # the installer of each system, as the build workflow names it (desktop/electron-builder.yml artifactName), and the file
@@ -59,29 +58,28 @@ def update_dir() -> Path:
     return Path(os.environ.get("WB_UPDATE_DIR") or Path(tempfile.gettempdir()) / "xingyan-updates")
 
 
+def _latest() -> str:
+    return f"{os.environ.get('WB_GITHUB_API') or 'https://api.github.com'}/repos/{REPO}/releases/latest"
+
+
 def check(force: bool = False, transport: httpx.BaseTransport | None = None) -> dict:
-    """{current, token (whether one is set), installable, latest, newer, url, name, published_at, notes, error,
-    checked_at}."""
+    """{current, installable, latest, newer, url, name, published_at, notes, error, checked_at}."""
     global _kept
     with _lock:
         if not force and _kept is not None and time.monotonic() - _kept[0] < KEEP:
             return _kept[1]
         out = _ask(transport)
-        _kept = (time.monotonic(), out) if out["token"] else None   # without a token nothing was asked: nothing to keep
+        _kept = (time.monotonic(), out)
         return out
 
 
 def _ask(transport: httpx.BaseTransport | None) -> dict:
-    base = {"current": __version__, "token": False, "installable": installable(), "latest": None, "newer": False,
+    base = {"current": __version__, "installable": installable(), "latest": None, "newer": False,
             "url": None, "name": None, "published_at": None, "notes": None, "error": None,
             "checked_at": datetime.now().isoformat(timespec="seconds")}
-    token = get_secret("github_token")
-    if not token:
-        return base
-    base["token"] = True
     try:
         with httpx.Client(transport=transport, timeout=10) as client:
-            r = client.get(LATEST, headers={**HEADERS, "Authorization": f"Bearer {token}"})
+            r = client.get(_latest(), headers=HEADERS)
     except httpx.HTTPError as e:
         return {**base, "error": f"连不上 GitHub（{type(e).__name__}）"}
     if refused := _refusal(r.status_code):
@@ -99,10 +97,9 @@ def _refusal(status: int) -> str | None:
     """What an answer of GitHub's other than 200 means, in words."""
     if status == 200:
         return None
-    return {401: "GitHub 令牌无效或过期：在设置里换一个",
-            404: "还没有发布的版本（草稿版不算），或者这个令牌读不到这个仓库",
-            403: "GitHub 暂时拒绝了请求（太频繁，或令牌权限不够），稍后再试",
-            429: "GitHub 暂时拒绝了请求（太频繁，或令牌权限不够），稍后再试"}.get(status, f"GitHub 返回 {status}")
+    return {404: "GitHub 上还没有发布的版本（草稿版不算）",
+            403: "GitHub 暂时拒绝了请求（问得太频繁），稍后再试",
+            429: "GitHub 暂时拒绝了请求（问得太频繁），稍后再试"}.get(status, f"GitHub 返回 {status}")
 
 
 class _Refused(Exception):
@@ -110,8 +107,8 @@ class _Refused(Exception):
 
 
 def _file_refusal(status: int, name: str) -> str | None:
-    """A release file GitHub would not hand over: the token's trouble said as for the release, anything else by name."""
-    return None if status == 200 else _refusal(status) if status in (401, 403, 429) else f"GitHub 没给出 {name}（{status}）"
+    """A release file GitHub would not hand over: too many questions said as for the release, anything else by name."""
+    return None if status == 200 else _refusal(status) if status in (403, 429) else f"GitHub 没给出 {name}（{status}）"
 
 
 def download_state() -> dict:
@@ -149,15 +146,11 @@ def _download(transport: httpx.BaseTransport | None) -> None:
 
 def _fetch(transport: httpx.BaseTransport | None) -> tuple[str, Path]:
     """The newest release's installer for this system, downloaded and checked: (its version, the file)."""
-    token = get_secret("github_token")
-    if not token:
-        raise _Refused("还没配 GitHub 令牌")
     if sys.platform not in INSTALLER:
         raise _Refused("这个系统没有安装包")
-    # follow_redirects: an asset answers with its storage's signed link; httpx drops the token for another host
-    with httpx.Client(transport=transport, timeout=30, follow_redirects=True,
-                      headers={**HEADERS, "Authorization": f"Bearer {token}"}) as client:
-        r = client.get(LATEST)
+    # follow_redirects: an asset answers with its storage's signed link
+    with httpx.Client(transport=transport, timeout=30, follow_redirects=True, headers=HEADERS) as client:
+        r = client.get(_latest())
         if refused := _refusal(r.status_code):
             raise _Refused(refused)
         rel = r.json()
