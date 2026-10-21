@@ -66,6 +66,14 @@ def test_the_address_can_point_at_a_stand_in(monkeypatch):
     assert str(seen[0].url) == "http://127.0.0.1:9/repos/Ver-Max-33/xing_yan/releases/latest"
 
 
+def test_the_releases_are_built_where_the_app_reads_them():
+    # build.yml builds and drafts releases in one repository only; the app must ask that one (10-21: the guard still
+    # named the private repository and the first build in xing_yan skipped every job)
+    import yaml
+    jobs = yaml.safe_load((ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8"))["jobs"]
+    assert jobs["version"]["if"] == f"github.repository == '{update.REPO}'"
+
+
 def test_the_same_or_an_older_release_is_no_update():
     assert update.check(transport=github(200, {"tag_name": f"v{__version__}"}))["newer"] is False
     assert update.check(force=True, transport=github(200, {"tag_name": "v0.0.1"}))["newer"] is False

@@ -30,9 +30,9 @@ env:
 jobs:
   version:
     name: 版本号
-    # only here: the public copy (xing_yan, the source only) carries this file and its tags too, and builds
-    # nothing — the installers come from this repository's tags (build and release need this job)
-    if: github.repository == 'Ver-Max-33/xingyan'
+    # only in the public repository (0.6.0 on): its tags build the installers and draft the releases the app reads
+    # (wb/update.py REPO); the private one carries this file too and builds nothing (build and release need this job)
+    if: github.repository == 'Ver-Max-33/xing_yan'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
