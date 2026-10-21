@@ -1,0 +1,40 @@
+id: tpl_calm_breakout
+name: 平稳横盘后向上突破
+doc: >-
+  箱体模板：大箱（横盘 60 根以上），或大箱里更窄的一段横盘（大箱里的中箱），收盘越过箱顶的那一根收盘后出信号；箱里的 K 线要短：
+  箱内 K 线平均长度（每根 (最高 − 最低) ÷ 昨收的平均）不超过 3%。为什么这样定：A 股 2016–2026 年（第二天开盘买入、20 个交易日
+  相对沪深 300 的超额，2016–2020 和 2021–2026 两段分开看），大箱和大箱里中箱的向上突破比单纯创 60 日新高好得多，单独的中箱不行；
+  箱里 K 线越短，突破之后越好，两段都是（K 线短说明成交平稳、有人控盘）；2%–4% 都差不多。
+  突破那天的量也别太大：量比（对前 5 日）超过 3.2 倍的突破之后更差（条件体检的候选条件归因，两段都是；加上后胜率 40.7% → 42.3%、
+  55.5% → 58.3%）。按箱内 K 线平均长度从短到长排。只在 A 股上测过。
+markets: [CN]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: calm, value: 0.03, range: [0.015, 0.05], step: 0.005, tune: true, unit: "%"}
+  - {id: vol_max, value: 3.2, range: [2.0, 6.0], step: 0.2, tune: true, unit: 倍}
+stages:
+  - id: box
+    label: 箱体
+    kind: structure
+    use: BOX
+    with: {level: [大箱, 大箱里的中箱]}
+    during:   # its bars up to the evening before a cross; up to the bar before the breakout
+      - {id: calm, label: 箱内 K 线平均长度, expr: "MEAN(BAR_LEN) <= $calm"}
+  - id: breakout
+    label: 向上突破
+    kind: event
+    on: box.break_up
+    at:
+      - {id: volume, label: 突破量比不过大, expr: "VOL_RATIO(5) <= $vol_max"}
+signal_at: breakout.at
+watch_stage: box
+ranking:
+  - {expr: "MEAN(BAR_LEN, of=box)", dir: asc, label: 箱内 K 线平均长度, unit: "%"}
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

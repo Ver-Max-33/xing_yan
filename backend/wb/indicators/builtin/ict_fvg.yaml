@@ -1,0 +1,16 @@
+id: ict_fvg
+name: 公允价值缺口 FVG
+doc: 三根 K 线里，第三根的最低价高于第一根的最高价（向上缺口，涨色），或第三根的最高价低于第一根的最低价（向下缺口，跌色），缺口至少是近 14 根平均振幅的 DEV%；从第一根画起，向右延伸到价格穿过整个缺口为止（END：0 一直画，1 穿过，2 碰到，3 收盘越过）；只画最近 MAXN 个。原脚本里价格进入缺口时缺口跟着缩小，这里画的是整个缺口。
+group: ict
+pane: main
+params:
+- {id: DEV, value: 70, range: [0, 300], step: 10}
+- {id: END, value: 1, range: [0, 3], step: 1}
+- {id: MAXN, value: 15, range: [0, 200], step: 1}
+source: ArunKBhaskar/PineScript · ICT Fair Value Gap (FVG) Scanner
+formula: |
+  最小:=DEV/100*MA(HIGH-LOW,14);
+  多:=LOW>REF(HIGH,2) AND LOW-REF(HIGH,2)>=最小;
+  空:=HIGH<REF(LOW,2) AND REF(LOW,2)-HIGH>=最小;
+  DRAWZONE(多,LOW,REF(HIGH,2),END,2,MAXN),COLORUP;
+  DRAWZONE(空,REF(LOW,2),HIGH,END,2,MAXN),COLORDOWN;

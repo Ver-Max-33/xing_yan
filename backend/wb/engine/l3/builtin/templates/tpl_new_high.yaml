@@ -1,0 +1,16 @@
+id: tpl_new_high
+name: 创 N 日新高
+doc: >-
+  通用模板（转写自 InStock 的"平台突破"、daily_stock_analysis 的"放量突破"说明）：收盘价创出此前 N 根的新高（120 根约半年、
+  250 根约一年，即年内向左），而且放量，那一根收盘后出信号。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_250d]}
+params:
+  - {id: n, value: 120, range: [20, 250], step: 10, tune: true, unit: 根}
+  - {id: vol, value: 1.5, range: [1.0, 3.0], step: 0.25, tune: true, unit: 倍}
+stages:
+  - id: today
+    kind: event
+    when: "NEW_HIGH($n) AND VOL_RATIO(5) >= $vol"
+signal_at: today.at
+judge: {fail: "REF(HHV(H, $n), 1) * 0.97", days: 60}

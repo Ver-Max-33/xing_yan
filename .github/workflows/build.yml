@@ -1,0 +1,186 @@
+# 安装包（spec §3.3）：打 v* 标签时，在 Windows（x64）上打一个安装包，跑一遍安装包检查，建成草稿版发布（附 SHA256SUMS.txt），
+# 在 GitHub 上看过再点发布；手动运行只打包、不发布，安装包在这次运行里留 1 天。macOS（Apple 芯片）只在手动运行时勾选才打
+# （10-17：你在 Windows 上装，macOS 的分钟按 10 倍计，两个安装包各留 3 天用完了这个月的 artifact 存储额度）。打标签时安装包
+# 经缓存交给发布任务（缓存有自己的额度），发布任务按打包任务算出的 SHA256 核对，建好草稿版就删掉这条缓存。
+# 打包步骤就是 scripts/build-mac.sh、scripts/build-win.ps1。安全规则见 docs/security.md「安装包工作流」：
+# 权限默认全关，只有建草稿版那一步能写；action 锁到提交；不用缓存、不用密钥；依赖按锁文件装、不跑安装脚本。
+name: 安装包
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      macos:
+        description: 也打 macOS（Apple 芯片）的安装包（macOS 的分钟按 10 倍计）
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:   # one paid build of a ref at a time: running it again replaces the run still going
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_MANAGED_PYTHON: "1"   # uv's own hash-checked build of backend/.python-version (what the tests run on), never the runner image's
+  UV_FROZEN: "1"           # every uv command takes uv.lock as it is: nothing is resolved again
+
+jobs:
+  version:
+    name: 版本号
+    # only here: the public copy (xing_yan, the source only) carries this file and its tags too, and builds
+    # nothing — the installers come from this repository's tags (build and release need this job)
+    if: github.repository == 'Ver-Max-33/xingyan'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 四处版本号一致；打标签时还要等于标签
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          desktop=$(jq -r .version desktop/package.json)
+          frontend=$(jq -r .version frontend/package.json)
+          backend=$(python3 -c 'import tomllib; print(tomllib.load(open("backend/pyproject.toml", "rb"))["project"]["version"])')
+          running=$(python3 -c 'import re; print(re.search(r"__version__ = \"([^\"]+)\"", open("backend/wb/__init__.py").read())[1])')
+          echo "desktop $desktop, frontend $frontend, backend $backend, wb.__version__ $running"
+          if [[ ! "$desktop" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$frontend" != "$desktop" || "$backend" != "$desktop" || "$running" != "$desktop" ]]; then
+            echo "::error::desktop/package.json、frontend/package.json、backend/pyproject.toml、backend/wb/__init__.py 的版本号要一致，形如 1.2.3（检查更新拿 wb.__version__ 和 GitHub 上的发布比）"
+            exit 1
+          fi
+          if [[ "$EVENT" == push && "$TAG" != "v$desktop" ]]; then
+            echo "::error::标签 $TAG 和版本号 $desktop 不一致"
+            exit 1
+          fi
+
+  build:
+    name: 打包（${{ matrix.name }}）
+    needs: version
+    strategy:
+      fail-fast: false   # one paid run tells about both platforms
+      matrix:
+        name: ${{ fromJSON(inputs.macos && '["Windows", "macOS"]' || '["Windows"]') }}   # a tag: Windows only
+    # macOS: about 3 minutes, a minute billing about 10 Linux minutes
+    runs-on: ${{ matrix.name == 'macOS' && 'macos-15' || 'windows-2025' }}
+    timeout-minutes: ${{ matrix.name == 'macOS' && 20 || 40 }}
+    permissions:
+      contents: read
+    outputs:   # a tag builds Windows only: its one installer's name and SHA256, which the release job checks what it gets against
+      installer: ${{ steps.handoff.outputs.name }}
+      sha256: ${{ steps.handoff.outputs.sha256 }}
+    steps:
+      - name: Windows 上按仓库原样检出（不改行尾）
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22.23.3"
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.21"   # gets the same Python 3.12.14 build as the local uv (0.12.23)
+          # uv's own release .sha256 (uv-aarch64-apple-darwin.tar.gz, uv-x86_64-pc-windows-msvc.zip), matching astral-sh/versions
+          checksum: ${{ matrix.name == 'macOS' && 'b88bda573e566ef9bced66b155fe0408626fbbc053aee1c30ba686f0728c9447' || '5d223efa0bf00208c3853246af09420419dfbd352536aa6bb8163d6170e23890' }}
+          enable-cache: false
+      - name: 打包
+        if: runner.os == 'macOS'
+        run: ./scripts/build-mac.sh
+      - name: 打包
+        if: runner.os == 'Windows'
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-win.ps1
+      - name: 安装（静默装进带中文的目录；记下安装包大小和用时）
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        env:
+          APP: 安装测试\形研\形研.exe   # the installed copy, in a path with Chinese
+        run: |
+          $installer = Get-Item dist\xingyan-*.exe
+          $dir = Split-Path (Join-Path $PWD $env:APP)
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+          $p = Start-Process $installer.FullName -ArgumentList "/S", "/D=$dir" -Wait -PassThru
+          if ($p.ExitCode) { throw "安装失败，退出码 $($p.ExitCode)" }
+          "安装包 {0:N0} MB，静默安装 {1:N1} 秒，装好 {2} 个文件" -f ($installer.Length / 1MB), $clock.Elapsed.TotalSeconds, (Get-ChildItem $dir -Recurse -File).Count
+      - name: 安装包检查（打好的应用启动自己的后端，注册表条目和源码一致）
+        working-directory: desktop
+        env:
+          WB_PACKAGED_APP: ${{ matrix.name == 'macOS' && 'dist/mac-arm64/形研.app/Contents/MacOS/形研' || '安装测试\形研\形研.exe' }}
+        run: npx playwright test tests/packaged.spec.mjs
+      - name: 交给发布任务（打标签时：安装包和它的 SHA256）
+        id: handoff
+        if: github.event_name == 'push'
+        run: |
+          $f = Get-Item desktop\dist\xingyan-*.exe
+          New-Item -ItemType Directory -Force release-files | Out-Null
+          Copy-Item $f.FullName release-files\
+          "name=$($f.Name)" >> $env:GITHUB_OUTPUT
+          "sha256=$((Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower())" >> $env:GITHUB_OUTPUT
+      # the cache, not an artifact: its own allowance, while artifacts bill by the hour against the month's 500 MB (10-17)
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: github.event_name == 'push'
+        with:
+          path: release-files
+          key: installer-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true   # saved on Windows, restored by the Linux release job
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name != 'push'   # a manual run: the installer to download
+        with:
+          path: ${{ matrix.name == 'macOS' && 'desktop/dist/xingyan-*.dmg' || 'desktop/dist/xingyan-*.exe' }}
+          archive: false   # the installer itself, not a zip: its digest on the run page is its SHA256
+          if-no-files-found: error
+          retention-days: 1   # storage bills by the hour
+
+  release:
+    name: 草稿版发布
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write   # the only write in this workflow: a draft release
+      actions: write    # and deleting this run's handoff cache once the draft has the installer
+    steps:
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: release-files
+          key: installer-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: 建草稿版（不公开；在 GitHub 上看过再点发布）
+        working-directory: release-files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          KEY: installer-${{ github.run_id }}-${{ github.run_attempt }}
+          NAME: ${{ needs.build.outputs.installer }}
+          SUM: ${{ needs.build.outputs.sha256 }}
+        run: |
+          # the build's own file, byte for byte, and nothing else: a cache keeps no digest of its own
+          if [[ "$(ls -A)" != "$NAME" ]]; then echo "::error::交来的不是打包任务打的那一个文件：$(ls -A | tr '\n' ' ')"; exit 1; fi
+          echo "$SUM  $NAME" | sha256sum -c -
+          sha256sum xingyan-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          mac=""
+          if compgen -G "xingyan-*.dmg" > /dev/null; then
+            mac='- macOS（Apple 芯片）：第一次打开时，在"系统设置 → 隐私与安全性"里点"仍要打开"。'
+          fi
+          gh release create "$TAG" xingyan-* SHA256SUMS.txt --draft --verify-tag --title "形研 $TAG" --notes-file - <<EOF
+          形研 ${TAG#v} 的安装包，还没有签名：
+
+          $mac
+          - Windows（x64）：SmartScreen 提示时，点"更多信息"，再点"仍要运行"。
+
+          下载后可以用 SHA256SUMS.txt 核对文件：macOS 运行 shasum -a 256 文件名，Windows 运行 certutil -hashfile 文件名 SHA256。
+
+          形研按 AGPL-3.0-or-later 发布，这一版的源代码：https://github.com/Ver-Max-33/xing_yan/tree/$TAG
+          EOF
+          gh cache delete "$KEY"   # the draft has it: the handoff goes

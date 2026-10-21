@@ -1,0 +1,46 @@
+id: tpl_xia_heng_shang
+name: 跌一段后低位长期横盘再突破（下横上）
+doc: >-
+  箱体模板：下跌之后在低位横盘、约 3–6 个月的大箱（下横），按黑马基因检查，
+  放量突破大箱顶那一根收盘后出信号。基因里能算的写成条件：箱内强于大盘、箱顶量能、60 日线走平或上翘、上方空间至少约 10%、
+  红肥绿瘦；没定死的数字都是参数。金品要不要、热点怎么看由你定（§6.2 澄清点）；四均线粘合、形末量尽、箱内涨停是观察项，
+  没写成硬条件。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_250d, resumed_lt_20d]}
+params:
+  - {id: vol, value: 1.0, range: [0.6, 2.0], step: 0.2, tune: true, unit: 倍}
+  - {id: space, value: 0.10, range: [0.05, 0.30], step: 0.05, tune: true, unit: "%"}
+  - {id: ma60, value: -0.0005, range: [-0.002, 0.002], step: 0.0005, tune: true, unit: "%"}
+  - {id: red, value: 0.5, range: [0.3, 0.8], step: 0.05, unit: "%"}
+stages:
+  - id: box
+    kind: structure
+    use: BOX
+    with: {scale: long, context: 下横, position: 低位}
+    # judged while the box waits (design 2026-10-11 §6): the room above its top to the left pressure (按线价算),
+    # the 60 日线 and 红肥绿瘦 as of the evening before — a cross buys before the breakout bar closes
+    at:
+      - {id: room, label: 上方空间, expr: "pressure.space >= $space"}
+    during:
+      - {id: stronger, label: 强于指数, expr: "REL_PERF() >= 0", unit: "%"}
+      - {id: ma60, label: 60 日线斜率, expr: "LAST(MA_SLOPE_PCT(60, 5), last=1) >= $ma60"}
+      - {id: red_fat, label: 红肥绿瘦, expr: "LAST(RED_GREEN_SHARE(40), last=1) >= $red"}
+  - id: breakout
+    kind: event
+    on: box.break_up
+    at:
+      - {id: volume, label: 突破量, expr: "BAND_VOL_RATIO(box) >= $vol"}
+signal_at: breakout.at
+watch_stage: box
+ranking:
+  - {expr: "BAND_VOL_RATIO(box)@breakout", dir: desc, label: 突破量, unit: 倍}
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  take:
+    - {line: "pressure.bottom", share: 0.5, label: 左侧压力（压力是下一道墙）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

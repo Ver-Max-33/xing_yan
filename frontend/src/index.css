@@ -1,0 +1,285 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/shadcn-variants.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* Design tokens from design/stock-workbench.pen (00 设计系统). Dark is the default theme.
+   Colour only carries meaning: red/green = up/down, blue = structures the system found,
+   amber = intraday & unconfirmed, orange = errors. */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--app-font);   /* 设置 → 外观 → 字体 */
+  --font-mono: var(--app-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-up-muted: var(--up-muted);
+  --color-down-muted: var(--down-muted);
+  --color-structure: var(--structure);
+  --color-structure-muted: var(--structure-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-error: var(--error);
+  --color-error-muted: var(--error-muted);
+  --color-annotate: var(--annotate);
+  --color-ma-1: var(--ma-1);
+  --color-ma-2: var(--ma-2);
+  --color-ma-3: var(--ma-3);
+  --color-ma-4: var(--ma-4);
+  --color-heat-up-1: var(--heat-up-1);
+  --color-heat-up-2: var(--heat-up-2);
+  --color-heat-up-3: var(--heat-up-3);
+  --color-heat-up-4: var(--heat-up-4);
+  --color-heat-down-1: var(--heat-down-1);
+  --color-heat-down-2: var(--heat-down-2);
+  --color-heat-down-3: var(--heat-down-3);
+  --color-heat-down-4: var(--heat-down-4);
+  --color-heat-flat: var(--heat-flat);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* The UI's fonts. 系统字体 (default): the system's Latin with the system's Chinese (SF + 苹方 on macOS, Segoe UI +
+   微软雅黑 on Windows), made to sit together; Geist: the design system's Latin. Numbers stay in Geist Mono (tabular). */
+:root {
+  --app-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Yu Gothic UI", sans-serif;
+  --app-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.font-geist {
+  --app-font: "Geist Variable", "PingFang SC", "Hiragino Sans", "Microsoft YaHei UI", "Microsoft YaHei", "Yu Gothic UI",
+    sans-serif;
+}
+
+:root {
+  color-scheme: light;
+  --radius: 6px;
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #09090b;
+  --muted: #f4f4f5;
+  --muted-foreground: #52525b;
+  --subtle-foreground: #6b6b74;
+  --accent: #f1f1f3;
+  --accent-foreground: #09090b;
+  --destructive: #c2410c;
+  --border: #e4e4e7;
+  --input: #d4d4d8;
+  --ring: #71717a;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #09090b;
+  --sidebar-primary: #18181b;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f1f1f3;
+  --sidebar-accent-foreground: #09090b;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #71717a;
+  --up: #d41a2b;   /* 4.7:1 on a selected row's #f1f1f3, as the green (it was #e11d2e, 4.2:1 — the layout check's contrast, 2026-10-12) */
+  --down: #067a66;
+  --up-muted: #d41a2b14;
+  --down-muted: #078a7314;
+  --structure: #2563eb;
+  --structure-muted: #2563eb14;
+  --warning: #9a6512;
+  --warning-muted: #b7791f14;
+  --false-bottom: #a21caf;
+  --box-long: #2563eb;
+  --box-mid: #7c3aed;
+  --box-short: #b45309;
+  --error: #c2410c;
+  --error-muted: #ea580c14;
+  --annotate: #27272a;
+  --ma-1: #946f00;   /* MA5 / MA10 legends on white: 4.6 and 5.9:1 (they were 2.6 and 4.1) */
+  --ma-2: #0369a1;
+  --ma-3: #db2777;
+  --ma-4: #737373;
+}
+
+.dark {
+  color-scheme: dark; /* native scrollbars, selects, number spinners and checkboxes follow (Windows shows them) */
+  --background: #0b0b0c;
+  --foreground: #f4f4f5;
+  --card: #111113;
+  --card-foreground: #f4f4f5;
+  --popover: #151517;
+  --popover-foreground: #f4f4f5;
+  --primary: #f4f4f5;
+  --primary-foreground: #18181b;
+  --secondary: #18181b;
+  --secondary-foreground: #f4f4f5;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --subtle-foreground: #8a8a93;
+  --accent: #1f1f23;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f97316;
+  --border: #26262a;
+  --input: #303035;
+  --ring: #a1a1aa;
+  --sidebar: #0f0f11;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #18181b;
+  --sidebar-accent: #1f1f23;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #202024;
+  --sidebar-ring: #a1a1aa;
+  --up: #f44c56;   /* 4.7:1 on a selected row's #1f1f23 (it was #f23645, 4.2:1 — the layout check's contrast, 2026-10-12) */
+  --down: #089981;
+  --up-muted: #f44c5622;
+  --down-muted: #08998122;
+  --structure: #3b82f6;
+  --structure-muted: #3b82f61f;
+  --warning: #e2a336;
+  --warning-muted: #e2a3361f;
+  --false-bottom: #e879f9;
+  --box-long: #3b82f6;
+  --box-mid: #a78bfa;
+  --box-short: #f59e0b;
+  --error: #f97316;
+  --error-muted: #f973161f;
+  --annotate: #e4e4e7;
+  --ma-1: #f5c451;
+  --ma-2: #38bdf8;
+  --ma-3: #f472b6;
+  --ma-4: #a3a3a3;
+}
+
+/* 市场页的热力格 (redesign §4): four steps a side, mixed from the up / down colours over the card — so 绿涨红跌 follows —
+   with the page's own ink on every step (the layout check measures the contrast in both themes) */
+:root {
+  --heat-up-1: color-mix(in oklab, var(--up) 16%, var(--card));
+  --heat-up-2: color-mix(in oklab, var(--up) 30%, var(--card));
+  --heat-up-3: color-mix(in oklab, var(--up) 46%, var(--card));
+  --heat-up-4: color-mix(in oklab, var(--up) 62%, var(--card));
+  --heat-down-1: color-mix(in oklab, var(--down) 16%, var(--card));
+  --heat-down-2: color-mix(in oklab, var(--down) 30%, var(--card));
+  --heat-down-3: color-mix(in oklab, var(--down) 46%, var(--card));
+  --heat-down-4: color-mix(in oklab, var(--down) 62%, var(--card));
+  --heat-flat: var(--accent);
+}
+
+/* the chart's own element (chart/controller.ts): its keyboard focus is seen */
+[data-chart-root]:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* 绿涨红跌 (spec §8.4: 涨跌配色由用户选择): swap the two semantic colours, nothing else.
+   <html> carries "dark" and/or "green-up"; ".dark.green-up" outranks ".dark". */
+.green-up {
+  --up: #067a66;
+  --down: #d41a2b;
+  --up-muted: #078a7314;
+  --down-muted: #d41a2b14;
+}
+.dark.green-up {
+  --up: #089981;
+  --down: #f44c56;
+  --up-muted: #08998122;
+  --down-muted: #f44c5622;
+}
+
+/* a bar for work whose share done is unknown (a fetch, waiting for the day's data): a slice sweeping across */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  /* The root size is 设置 → 外观 → 字号 (16px: the components' own; set on <html> by app/theme.ts): every size is
+     in rem, so text, controls and spacing scale together, while fixed columns keep their width. */
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    overflow: hidden;
+  }
+  /* a fixed-width table's cell never spills into the next one: what does not fit is clipped (…), or wraps where
+     the cell allows it */
+  table.table-fixed td,
+  table.table-fixed th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* two cells side by side never touch: "+11.2%" and "-4.5%" would read as one figure (a table's own padding wins) */
+  td + td,
+  th + th {
+    padding-left: 0.5rem;
+  }
+  /* one checkbox everywhere: the switch's colour, one size */
+  input[type="checkbox"] {
+    accent-color: var(--primary);
+    width: 0.875rem;
+    height: 0.875rem;
+    cursor: pointer;
+  }
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Electron (no title bar of the system's): the top strip of the sidebar and the toolbars drag the window. */
+  .drag { -webkit-app-region: drag; }
+  .no-drag { -webkit-app-region: no-drag; }
+  /* What floats over the page — menus, popovers, dialogs, lists — is never the drag area: the system takes a click there
+     before the page sees it, so a menu opening over a toolbar on two lines lost its top items (10-12: the 分钟 menu's
+     1分钟, the basis menu's 前复权). */
+  [data-radix-popper-content-wrapper], [role="dialog"], [role="listbox"] { -webkit-app-region: no-drag; }
+}
+
+/* A <select>'s list on Windows is Chromium's own little page: white (its picker_common.css), under the select's own
+   background and text colour. A see-through select left the dark theme's light text on white there (2026-10-11, the 选股
+   page's rule list); on macOS the list is the system's menu and never showed it. Every select is opaque, the page's
+   colour: outside the layers, so no bg-transparent can undo it (desktop tests/layout.spec checks every page). */
+select { background-color: var(--background); }
+
+/* Windows (desktop main.js titleBarOverlay): the window's minimize / maximize / close buttons are drawn over the right
+   end of the top row; a row reaching there keeps clear of them — their width from the Window Controls Overlay, 3 × 46 px
+   where it gives none. Outside the layers, so it wins over the row's own padding. */
+.win-overlay .clear-window-buttons {
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px)) + 0.75rem);
+}

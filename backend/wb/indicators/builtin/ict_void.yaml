@@ -1,0 +1,18 @@
+id: ict_void
+name: 流动性空白
+doc: 特别长、几乎没有影线的 K 线，实体那一段价格是一口气走过去的，几乎没有成交在那里：把实体画成区间，向右延伸到价格回来填满为止。振幅至少近 14 根平均的 DEV%、实体至少占 BODY%。
+group: ict
+pane: main
+params:
+- {id: DEV, value: 200, range: [100, 500], step: 10}
+- {id: BODY, value: 80, range: [50, 100], step: 5}
+- {id: END, value: 1, range: [0, 3], step: 1}
+- {id: MAXN, value: 20, range: [0, 200], step: 1}
+source: ArunKBhaskar/PineScript · ICT Liquidity Void
+formula: |
+  均幅:=MA(HIGH-LOW,14);
+  实体:=ABS(CLOSE-OPEN)/(HIGH-LOW)*100;
+  大阳:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE>OPEN;
+  大阴:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE<OPEN;
+  DRAWZONE(大阳,CLOSE,OPEN,END,0,MAXN),COLORUP;
+  DRAWZONE(大阴,OPEN,CLOSE,END,0,MAXN),COLORDOWN;

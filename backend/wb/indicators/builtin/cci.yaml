@@ -1,0 +1,12 @@
+id: cci
+name: CCI 顺势指标
+doc: 典型价离它的均线有多远（以平均偏差为单位）：+100 以上是强势区，−100 以下是弱势区。
+group: common
+pane: sub
+params:
+- {id: N, value: 14, range: [2, 100], step: 1}
+levels: [-100, 0, 100]
+source: 通达信同名指标的公式
+formula: |
+  TYP:=(HIGH+LOW+CLOSE)/3;
+  CCI:(TYP-MA(TYP,N))*1000/(15*AVEDEV(TYP,N));

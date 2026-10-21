@@ -1,0 +1,14 @@
+id: review
+name: 当天大涨（复盘用）
+doc: >-
+  复盘选股：当天涨幅 ≥ x，去掉新股上市初期的一字板。x 默认 5%，作参数；"上市初期"按上市后的 K 线根数算，也是参数。
+markets: [CN, JP]
+universe: {exclude: [st]}
+params:
+  - {id: gain, value: 0.05, range: [0.02, 0.2], step: 0.01, tune: true, unit: "%"}
+  - {id: new_days, value: 60, range: [10, 250], step: 10, tune: true, unit: 根}
+stages:
+  - id: today
+    kind: event
+    when: "C / REF(C, 1) - 1 >= $gain AND NOT (RAW_H == RAW_L AND BARSCOUNT(C) <= $new_days)"
+signal_at: today.at

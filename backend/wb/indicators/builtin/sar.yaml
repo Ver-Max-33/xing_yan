@@ -1,0 +1,14 @@
+id: sar
+name: SAR 抛物线转向
+doc: 点在 K 线下方是上升（涨色），上方是下降（跌色）；价格碰到点就换边。加速因子从 STEP% 起，每创新高（低）加 STEP%，最多 MAX%，从第 N 根开始算。
+group: common
+pane: main
+params:
+- {id: N, value: 10, range: [2, 100], step: 1}
+- {id: STEP, value: 2, range: [0.5, 10], step: 0.5}
+- {id: MAX, value: 20, range: [5, 50], step: 5}
+source: TradingView 内置指标的公开算法（ta.sar）
+formula: |
+  S:=SAR(N,STEP,MAX);
+  多:IF(CLOSE>=S,S,DRAWNULL),CIRCLEDOT,COLORUP;
+  空:IF(CLOSE<S,S,DRAWNULL),CIRCLEDOT,COLORDOWN;

@@ -1,0 +1,13 @@
+id: wr
+name: WR 威廉指标
+doc: 收盘离 N 天最高价有多远：在最高价处是 0、最低价处是 100（通达信的方向，和常见的 Williams %R 相反、不带负号）；20 以下偏超买，80 以上偏超卖。
+group: common
+pane: sub
+params:
+- {id: N, value: 10, range: [2, 100], step: 1}
+- {id: N1, value: 6, range: [2, 100], step: 1}
+levels: [20, 50, 80]
+source: 通达信同名指标的公式
+formula: |
+  WR1:100*(HHV(HIGH,N)-CLOSE)/(HHV(HIGH,N)-LLV(LOW,N));
+  WR2:100*(HHV(HIGH,N1)-CLOSE)/(HHV(HIGH,N1)-LLV(LOW,N1));

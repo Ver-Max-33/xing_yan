@@ -1,0 +1,22 @@
+id: setup_momentum
+name: 动量投资（Ankush Bajaj）
+doc: 五个条件同时满足时在 K 线下方画上箭头：250 根涨幅超过 PCT%（按原脚本，除以现在的收盘）、RSI(14) 高于 RSIB、MFI(14) 高于 MFIB、CCI(20) 高于 CCIB、成交量超过 20 日指数均量的 VMULT 倍；反过来（跌幅、低于 100−RSIB 等）画下箭头。原设置还要求市值、股价门槛，是印度市场的，没有照搬。
+group: setup
+pane: main
+params:
+- {id: PCT, value: 8, range: [0, 100], step: 1}
+- {id: RSIB, value: 60, range: [50, 90], step: 1}
+- {id: MFIB, value: 60, range: [50, 90], step: 1}
+- {id: CCIB, value: 100, range: [0, 300], step: 10}
+- {id: VMULT, value: 5, range: [1, 10], step: 0.5}
+source: ArunKBhaskar/PineScript · Momentum Setup - Ankush Bajaj Momentum Investing Setup
+formula: |
+  涨幅:=(CLOSE-REF(CLOSE,250))/CLOSE*100;
+  R:=RSI(14);
+  TYP:=(HIGH+LOW+CLOSE)/3;
+  V1:=SUM(IF(TYP>REF(TYP,1),TYP*VOL,0),14)/SUM(IF(TYP<REF(TYP,1),TYP*VOL,0),14);
+  MF:=100-100/(1+V1);
+  CC:=(TYP-MA(TYP,20))/(0.015*AVEDEV(TYP,20));
+  放量:=VOL>EMA(VOL,20)*VMULT;
+  DRAWICON(涨幅>PCT AND R>RSIB AND MF>MFIB AND CC>CCIB AND 放量,LOW,1);
+  DRAWICON(涨幅<-PCT AND R<100-RSIB AND MF<100-MFIB AND CC<-CCIB AND 放量,HIGH,2);

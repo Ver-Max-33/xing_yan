@@ -1,0 +1,15 @@
+id: bias
+name: BIAS 乖离率
+doc: 收盘离均线的百分比：离得太远容易往回拉。
+group: common
+pane: sub
+params:
+- {id: N1, value: 6, range: [1, 250], step: 1}
+- {id: N2, value: 12, range: [1, 250], step: 1}
+- {id: N3, value: 24, range: [1, 250], step: 1}
+levels: [0]
+source: 通达信同名指标的公式
+formula: |
+  BIAS1:(CLOSE-MA(CLOSE,N1))/MA(CLOSE,N1)*100;
+  BIAS2:(CLOSE-MA(CLOSE,N2))/MA(CLOSE,N2)*100;
+  BIAS3:(CLOSE-MA(CLOSE,N3))/MA(CLOSE,N3)*100;

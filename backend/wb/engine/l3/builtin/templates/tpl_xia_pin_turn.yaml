@@ -1,0 +1,44 @@
+id: tpl_xia_pin_turn
+name: 箱中下部的小整理先突破（下品 · 小箱拐点）
+doc: >-
+  箱体模板，下品的默认买法：大箱里离箱顶有距离的小箱，在小箱自己的拐点或突破时买；从买点到大箱顶
+  要留出至少约 10% 的空间（买入价到上方压力至少 10%）。拐点本身要看分时，这里用能算的小箱突破那一根代替。下品离箱顶多远
+  有两种说法（另一种是 10% 以内最好），所以另有「下品 · 大箱突破买」模板。
+  小箱突破当天不要求放量：A 股 2016–2026 年回测里，要求量比（对前 5 日）≥ 1.2，前后两段的胜率都更低（条件体检判"有害"）。
+  小箱的量能有两个开关（金品里的两种状态），默认都关：形末量尽 xingmo——小箱最后 10 根里最小的 5 日均量
+  不超过小箱里最高的 5 日均量的四分之一（缩到四五分之一以下）；阳量群 yangqun——小箱的均量是小箱前两个月的 2 倍以上
+  （高出两到三倍）、阳线的量占六成以上（红肥绿瘦）。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: room, value: 0.10, range: [0.05, 0.25], step: 0.01, tune: true, unit: "%"}
+  - {id: xingmo, value: false}
+  - {id: dry, value: 0.25}
+  - {id: yangqun, value: false}
+  - {id: lift, value: 2.0}
+  - {id: red, value: 0.6}
+stages:
+  - {id: pre, label: 小箱前两个月, kind: window, before: {stage: g, bars: [1, 40]}}
+  - id: g
+    kind: structure
+    use: GOLD
+    with: {kind: 下品, variant: false}
+    at:   # 小箱顶到大箱顶 — judged while the small box waits, before the turn (design 2026-10-11 §6)
+      - {id: room_to_big_top, label: 离大箱顶, expr: "g.big_top / g.small_top - 1 >= $room"}
+    during:
+      - {id: xingmo, label: 小箱形末量尽（开关 xingmo）, expr: "$xingmo == 0 OR MIN(MA(V, 5), last=10) / MAX(MA(V, 5)) <= $dry"}
+      - {id: yangqun, label: 小箱阳量群（开关 yangqun）, expr: "$yangqun == 0 OR (MEAN(V) / MEAN(V, of=pre) >= $lift AND SUM(IF(C > O, V, 0)) / SUM(V) >= $red)"}
+  - id: turn
+    kind: event
+    on: g.break_up
+signal_at: turn.at
+watch_stage: g
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "g.small_bottom", label: 金品底（金品就是假底）}
+  take:
+    - {line: "g.big_top", share: 0.5, label: 大箱顶（下品到大箱顶有压力）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

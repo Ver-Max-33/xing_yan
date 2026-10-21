@@ -1,0 +1,13 @@
+id: mfi
+name: MFI 资金流量
+doc: 带成交量的 RSI：典型价上涨日的成交额占比，80 以上偏超买，20 以下偏超卖。
+group: common
+pane: sub
+params:
+- {id: N, value: 14, range: [2, 100], step: 1}
+levels: [20, 50, 80]
+source: 通达信同名指标的公式
+formula: |
+  TYP:=(HIGH+LOW+CLOSE)/3;
+  V1:=SUM(IF(TYP>REF(TYP,1),TYP*VOL,0),N)/SUM(IF(TYP<REF(TYP,1),TYP*VOL,0),N);
+  MFI:100-(100/(1+V1));

@@ -1,0 +1,43 @@
+id: tpl_tian_pin
+name: 突破后在原箱顶上方再整理（天品）
+doc: >-
+  箱体模板：大箱向上突破之后缩量回踩，在原箱顶上得到支撑、横成一个小箱（天品），或沿窄通道缓慢上斜
+  （变异天品），小箱再次向上突破那一根收盘后出信号。小箱要在突破前 2 根到突破后 5 根之内开始、底不高出原箱顶 6%（箱体推导的
+  sky_soon、sky_near）——涨远了再横盘的不算天品（那是"涨一段后短期窄幅横盘"）。天品的好处是大箱突破已经发生，可以检验
+  突破后的承接；它同样可能失败。只要平的，在 with 里加 variant: false。再次突破那天的量只要不比昨天少：A 股 2016–2026 年
+  回测里，量能条件写成哪种、要不要都没有分别。
+  小箱的量能有两个开关（金品里的两种状态），默认都关：形末量尽 xingmo——小箱最后 10 根里最小的 5 日均量
+  不超过小箱里最高的 5 日均量的四分之一（缩到四五分之一以下）；阳量群 yangqun——小箱的均量是小箱前两个月的 2 倍以上
+  （高出两到三倍）、阳线的量占六成以上（红肥绿瘦）。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: vol, value: 1.0, range: [0.8, 3.0], step: 0.1, tune: true, unit: 倍}
+  - {id: xingmo, value: false}
+  - {id: dry, value: 0.25}
+  - {id: yangqun, value: false}
+  - {id: lift, value: 2.0}
+  - {id: red, value: 0.6}
+stages:
+  - {id: pre, label: 小箱前两个月, kind: window, before: {stage: g, bars: [1, 40]}}
+  - id: g
+    kind: structure
+    use: GOLD
+    with: {kind: 天品}
+    during:
+      - {id: xingmo, label: 小箱形末量尽（开关 xingmo）, expr: "$xingmo == 0 OR MIN(MA(V, 5), last=10) / MAX(MA(V, 5)) <= $dry"}
+      - {id: yangqun, label: 小箱阳量群（开关 yangqun）, expr: "$yangqun == 0 OR (MEAN(V) / MEAN(V, of=pre) >= $lift AND SUM(IF(C > O, V, 0)) / SUM(V) >= $red)"}
+  - id: again
+    kind: event
+    on: g.break_up
+    at:
+      - {id: volume, label: 量不比昨天少, expr: "VOL_MULT >= $vol"}
+signal_at: again.at
+watch_stage: g
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "g.small_bottom", label: 金品底（金品就是假底）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

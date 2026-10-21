@@ -1,0 +1,20 @@
+id: dmi
+name: DMI 趋向指标
+doc: PDI 是上涨的力度，MDI 是下跌的力度，ADX 是趋势的强弱（不分方向）：PDI 在 MDI 上方且 ADX 走高，上升趋势在加强。
+group: common
+pane: sub
+params:
+- {id: N, value: 14, range: [2, 100], step: 1}
+- {id: M, value: 6, range: [1, 100], step: 1}
+levels: [20]
+source: 通达信同名指标的公式
+formula: |
+  MTR:=SUM(MAX(MAX(HIGH-LOW,ABS(HIGH-REF(CLOSE,1))),ABS(REF(CLOSE,1)-LOW)),N);
+  HD:=HIGH-REF(HIGH,1);
+  LD:=REF(LOW,1)-LOW;
+  DMP:=SUM(IF(HD>0&&HD>LD,HD,0),N);
+  DMM:=SUM(IF(LD>0&&LD>HD,LD,0),N);
+  PDI:DMP*100/MTR,COLORUP;
+  MDI:DMM*100/MTR,COLORDOWN;
+  ADX:MA(ABS(MDI-PDI)/(MDI+PDI)*100,M);
+  ADXR:(ADX+REF(ADX,M))/2;

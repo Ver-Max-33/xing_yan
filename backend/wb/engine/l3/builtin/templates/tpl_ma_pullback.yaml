@@ -1,0 +1,17 @@
+id: tpl_ma_pullback
+name: 缩量回踩均线
+doc: >-
+  通用模板（转写自 daily_stock_analysis 的"缩量回踩"策略说明）：20 日线向上的股票，回落到 20 日线附近（最低价碰到均线带、
+  收盘仍在均线上方），而且缩量，那一根收盘后出信号。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d]}
+params:
+  - {id: n, value: 20, range: [10, 60], step: 5, tune: true, unit: 根}
+  - {id: touch, value: 0.01, range: [0.0, 0.03], step: 0.005, tune: true, unit: "%"}
+  - {id: shrink, value: 0.8, range: [0.5, 1.0], step: 0.1, tune: true, unit: 倍}
+stages:
+  - id: today
+    kind: event
+    when: "MA_SLOPE_PCT($n, 5) > 0 AND L <= MA(C, $n) * (1 + $touch) AND C >= MA(C, $n) AND VOL_RATIO(5) <= $shrink"
+signal_at: today.at
+judge: {fail: "MA(C, $n) * 0.97", days: 20}

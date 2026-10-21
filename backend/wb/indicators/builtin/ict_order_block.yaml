@@ -1,0 +1,20 @@
+id: ict_order_block
+name: 订单块
+doc: 一根向上的位移 K 线之前（5 根以内）最后那根阴线，它的高低点就是订单块（反过来是向下位移前最后那根阳线）：ICT 认为大资金在那里建过仓，价格回来常会在这里得到支撑（压力）。画到收盘越过它的另一边为止（END=3；1 穿过，2 碰到）。
+group: ict
+pane: main
+params:
+- {id: DEV, value: 150, range: [50, 400], step: 10}
+- {id: BODY, value: 70, range: [0, 100], step: 5}
+- {id: END, value: 3, range: [0, 3], step: 1}
+- {id: MAXN, value: 10, range: [0, 200], step: 1}
+source: ArunKBhaskar/PineScript · ICT Retracement to Order Block
+formula: |
+  均幅:=MA(HIGH-LOW,14);
+  实体:=ABS(CLOSE-OPEN)/(HIGH-LOW)*100;
+  多位移:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE>OPEN AND CLOSE>REF(CLOSE,1);
+  空位移:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE<OPEN AND CLOSE<REF(CLOSE,1);
+  阴:=REF(BARSLAST(CLOSE<OPEN),1)+1;
+  阳:=REF(BARSLAST(CLOSE>OPEN),1)+1;
+  DRAWZONE(多位移 AND 阴<=5,REF(HIGH,阴),REF(LOW,阴),END,阴,MAXN),COLORUP;
+  DRAWZONE(空位移 AND 阳<=5,REF(HIGH,阳),REF(LOW,阳),END,阳,MAXN),COLORDOWN;

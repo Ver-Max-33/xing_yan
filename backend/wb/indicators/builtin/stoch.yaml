@@ -1,0 +1,15 @@
+id: stoch
+name: 随机指标 Stochastic
+doc: 收盘在 N 根高低区间里的位置（%K，平滑 SMOOTHK 根）和它的均线（%D）：80 以上偏超买，20 以下偏超卖。组合设置里用它确认方向。
+group: common
+pane: sub
+params:
+- {id: N, value: 14, range: [2, 100], step: 1}
+- {id: SMOOTHK, value: 3, range: [1, 50], step: 1}
+- {id: SMOOTHD, value: 3, range: [1, 50], step: 1}
+levels: [20, 80]
+source: TradingView 内置指标的公开算法（Stochastic）
+formula: |
+  RAW:=100*(CLOSE-LLV(LOW,N))/(HHV(HIGH,N)-LLV(LOW,N));
+  K:MA(RAW,SMOOTHK);
+  D:MA(K,SMOOTHD);

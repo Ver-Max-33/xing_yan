@@ -1,0 +1,15 @@
+id: vol_burst
+name: 成交量突然放大（爆大量）
+doc: >-
+  选股器：今天的量至少是昨天的两倍；或者连续 4 根小阳线（爆大量可能在第二、三天才来）。
+  2 倍只用来粗筛异动，不是突破门槛；小阳线的涨幅上限是参数。
+markets: [CN, JP]
+universe: {exclude: [st]}
+params:
+  - {id: multiple, value: 2.0, range: [1.5, 4.0], step: 0.25, tune: true, unit: 倍}
+  - {id: small_yang, value: 0.03, range: [0.01, 0.05], step: 0.005, tune: true, unit: "%"}
+stages:
+  - id: today
+    kind: event
+    when: "VOL_MULT >= $multiple OR SMALL_YANG_RUN(4, $small_yang)"
+signal_at: today.at

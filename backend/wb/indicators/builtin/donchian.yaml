@@ -1,0 +1,12 @@
+id: donchian
+name: 唐奇安通道
+doc: N 根最高价和最低价围成的通道（含当根），中线是两者的中点：收盘贴着上轨走是强势。
+group: common
+pane: main
+params:
+- {id: N, value: 20, range: [2, 250], step: 1}
+source: TradingView 内置指标的公开算法（Donchian Channels）
+formula: |
+  上轨:HHV(HIGH,N);
+  下轨:LLV(LOW,N);
+  中轨:(上轨+下轨)/2,DOTLINE;

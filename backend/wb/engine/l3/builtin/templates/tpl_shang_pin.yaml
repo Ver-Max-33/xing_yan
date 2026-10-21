@@ -1,0 +1,39 @@
+id: tpl_shang_pin
+name: 贴着箱顶整理后突破（上品）
+doc: >-
+  箱体模板：大箱里贴着箱顶的小横盘（上品），或从箱内中下部缓升、顶到箱顶的上斜小通道（变异上品），
+  随后大箱向上突破那一根收盘后出信号。上品还在大箱里时，可能上破，也可能退回：先观察，等突破转折再看量、K 线、
+  均线配合。只要平的，在金品的 with 里加 variant: false。突破当天不要求放量：A 股 2016–2026 年回测里，要求突破量不低于箱沿
+  参考量，前后两段的胜率都更低（去掉后 33.4% → 36.6%、47.8% → 52.0%，条件体检判"有害"）；想要求放量，加一个
+  BAND_VOL_RATIO(big) 的条件。
+  小箱的量能有两个开关（金品里的两种状态），默认都关：形末量尽 xingmo——小箱最后 10 根里最小的 5 日均量
+  不超过小箱里最高的 5 日均量的四分之一（缩到四五分之一以下）；阳量群 yangqun——小箱的均量是小箱前两个月的 2 倍以上
+  （高出两到三倍）、阳线的量占六成以上（红肥绿瘦）。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: xingmo, value: false}
+  - {id: dry, value: 0.25}
+  - {id: yangqun, value: false}
+  - {id: lift, value: 2.0}
+  - {id: red, value: 0.6}
+stages:
+  - {id: big, label: 大箱, kind: structure, use: BOX, with: {scale: [mid, long]}}
+  - {id: pre, label: 小箱前两个月, kind: window, before: {stage: g, bars: [1, 40]}}
+  - id: g
+    kind: structure
+    use: GOLD
+    with: {kind: 上品, of: big}
+    during:
+      - {id: xingmo, label: 小箱形末量尽（开关 xingmo）, expr: "$xingmo == 0 OR MIN(MA(V, 5), last=10) / MAX(MA(V, 5)) <= $dry"}
+      - {id: yangqun, label: 小箱阳量群（开关 yangqun）, expr: "$yangqun == 0 OR (MEAN(V) / MEAN(V, of=pre) >= $lift AND SUM(IF(C > O, V, 0)) / SUM(V) >= $red)"}
+  - {id: breakout, label: 大箱突破, kind: event, on: big.break_up}
+signal_at: breakout.at
+watch_stage: g
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "g.small_bottom", label: 金品底（金品就是假底）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

@@ -1,0 +1,15 @@
+id: supertrend
+name: 超级趋势 SuperTrend
+doc: （最高+最低）/2 上下加减 MULT 倍 ATR(N)（Wilder 平滑）做轨道，收盘越过才换边：线在 K 线下方是上升（涨色）、上方是下降（跌色），换边处画箭头。组合设置里的横盘跳过、动量投资都用它。
+group: common
+pane: main
+params:
+- {id: N, value: 10, range: [1, 100], step: 1}
+- {id: MULT, value: 3, range: [0.5, 10], step: 0.5}
+source: TradingView 内置指标的公开算法（ta.supertrend）
+formula: |
+  ST:=SUPERTREND(N,MULT);
+  上升:IF(ST.DIR=1,ST.LINE,DRAWNULL),COLORUP,LINETHICK2;
+  下降:IF(ST.DIR=-1,ST.LINE,DRAWNULL),COLORDOWN,LINETHICK2;
+  DRAWICON(ST.DIR=1 AND REF(ST.DIR,1)=-1,ST.LINE,1);
+  DRAWICON(ST.DIR=-1 AND REF(ST.DIR,1)=1,ST.LINE,2);

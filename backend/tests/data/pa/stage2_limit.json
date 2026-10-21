@@ -1,0 +1,100 @@
+{
+ "decision": {
+  "order_direction": "做多",
+  "order_type": "限价单",
+  "entry_price": "{entry}",
+  "take_profit_price": "{tp1}",
+  "take_profit_price_2": "{tp2}",
+  "stop_loss_price": "{stop}",
+  "entry_basis_bar": null,
+  "entry_basis_extreme": null,
+  "entry_rule": null,
+  "reasoning": "回调到前一根K线中部挂限价买入",
+  "diagnosis_confidence": 75,
+  "diagnosis_confidence_reasoning": "阶段一诊断一致",
+  "trade_confidence": "{conf}",
+  "trade_confidence_reasoning": "结构清楚",
+  "estimated_win_rate": "{win}",
+  "estimated_win_rate_reasoning": "结构支持约 {win}%",
+  "key_factors": [
+   "回调"
+  ],
+  "watch_points": [
+   "K1 低点"
+  ],
+  "risk_assessment": "中等",
+  "invalidation_condition": "收盘跌破 {stop}"
+ },
+ "diagnosis_summary": {
+  "cycle_position": "normal_channel",
+  "direction": "bullish",
+  "key_signals": [
+   "回调浅"
+  ]
+ },
+ "bar_analysis": {
+  "always_in": "long",
+  "last_closed_bar": "K1",
+  "bar_type": "trend_bull",
+  "signal_bar": {
+   "bar": "K2",
+   "quality": "strong",
+   "pattern": "H1",
+   "reason": "test"
+  },
+  "entry_bar": {
+   "bar": null,
+   "strength": "not_triggered",
+   "follow_through": "pending",
+   "still_valid": true,
+   "freshness": "pending"
+  },
+  "second_entry": {
+   "is_second_entry": false,
+   "type": "none"
+  }
+ },
+ "decision_trace": [
+  {
+   "node_id": "4.1",
+   "section": "顺势通道",
+   "question": "是否为顺势通道结构？",
+   "answer": "是",
+   "reason": "HH+HL 结构清晰，回调浅且跟随良好。",
+   "skipped": false,
+   "bar_range": "K5-K3"
+  },
+  {
+   "node_id": "9.1",
+   "section": "信号棒",
+   "question": "最新K线是否为合格信号棒？",
+   "answer": "是",
+   "reason": "信号棒实体饱满，方向与多头判断一致。",
+   "skipped": false,
+   "bar_range": "K2"
+  },
+  {
+   "node_id": "10.3",
+   "section": "交易者方程",
+   "question": "交易者方程是否通过？",
+   "answer": "是",
+   "reason": "买入 {entry}，止损 {stop}，第一止盈 {tp1}，胜率 {win}%，交易者方程为正。",
+   "skipped": false,
+   "bar_range": "K1"
+  },
+  {
+   "node_id": "11.3",
+   "section": "最终确认",
+   "question": "是否执行该交易计划？",
+   "answer": "是",
+   "reason": "回调到结构位挂限价单。",
+   "skipped": false,
+   "bar_range": "K3-K1"
+  }
+ ],
+ "terminal": {
+  "node_id": "11.3",
+  "outcome": "trade",
+  "label": "限价买入"
+ }
+}

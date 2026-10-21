@@ -1,0 +1,16 @@
+id: ma_group
+name: 均线组（可调）
+doc: 四条简单均线，周期自己定（图上自带的均线固定是 5、10、20、60）。
+group: common
+pane: main
+params:
+- {id: N1, value: 5, range: [1, 500], step: 1}
+- {id: N2, value: 10, range: [1, 500], step: 1}
+- {id: N3, value: 20, range: [1, 500], step: 1}
+- {id: N4, value: 60, range: [1, 500], step: 1}
+source: 通达信同名指标的公式
+formula: |
+  MA1:MA(CLOSE,N1);
+  MA2:MA(CLOSE,N2);
+  MA3:MA(CLOSE,N3);
+  MA4:MA(CLOSE,N4);

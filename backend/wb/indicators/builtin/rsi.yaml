@@ -1,0 +1,15 @@
+id: rsi
+name: RSI 相对强弱
+doc: 一段时间里上涨幅度占涨跌总幅度的比例：80 以上偏超买，20 以下偏超卖，50 是多空分界。
+group: common
+pane: sub
+params:
+- {id: N1, value: 6, range: [2, 100], step: 1}
+- {id: N2, value: 12, range: [2, 100], step: 1}
+- {id: N3, value: 24, range: [2, 100], step: 1}
+levels: [20, 50, 80]
+source: 通达信同名指标的公式
+formula: |
+  RSI1:RSI(N1);
+  RSI2:RSI(N2);
+  RSI3:RSI(N3);

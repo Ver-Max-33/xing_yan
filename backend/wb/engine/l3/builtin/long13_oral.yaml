@@ -1,0 +1,18 @@
+id: long13_oral
+name: 横盘蓄势 · 宽松版
+doc: >-
+  比原公式宽的选股条件：两个月振幅 30%（牛市可收到 25%、熊市放到 40% 左右），60 日线走平或上翘，
+  收盘在 60 日线上方一个板以内（原公式也是收盘在 60 日线上方；上下都算的读法在 A 股 2016–2026 年两段回测里和它没有分别，
+  选出的多三成），两三个月内有过涨停（"有过"而不是"恰好一次"；看两个月还是三个月回测也没有分别，用两个月）。
+  "多平算走平"没有定数，走平阈值是参数。与原公式分别运行、分别检验，不合并。
+markets: [CN, JP]
+universe: {exclude: [st]}
+params:
+  - {id: amplitude, value: 30, range: [20, 45], step: 5, tune: true}
+  - {id: slope_k, value: 5, range: [3, 20], step: 1, unit: 根}
+  - {id: flat, value: 0.0, range: [-0.002, 0.002], step: 0.0005, tune: true, unit: "%"}
+stages:
+  - id: today
+    kind: event
+    when: "(HHV(H, 40) / LLV(L, 40) - 1) * 100 < $amplitude AND MA_SLOPE_PCT(60, $slope_k) >= $flat AND MA_DIST(60) >= 0 AND MA_DIST(60) <= LIMIT_PCT AND EXIST(LIMIT_UP_CLOSE, 40)"
+signal_at: today.at

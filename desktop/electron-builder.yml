@@ -1,0 +1,42 @@
+# The installer (spec §3.3): the thin shell, the PyInstaller backend and the built frontend as resources. Unsigned for
+# now — code signing is P7; the app updates itself with these installers (update.js, backend wb/update.py). Build with scripts/build-mac.sh or scripts/build-win.ps1 (each on its
+# own platform: PyInstaller does not cross-compile).
+appId: local.xingyan.workbench
+productName: 形研
+directories:
+  output: dist
+# the icons, build/icon.icns and build/icon.ico (picked up from build/ by name): board 10 应用图标 of design/stock-workbench.pen
+# ASCII file names (xingyan-0.1.0-mac-arm64.dmg, xingyan-0.1.0-win-x64.exe): a GitHub release renames other characters
+artifactName: xingyan-${version}-${os}-${arch}.${ext}
+files:
+  - main.js
+  - preload.js
+  - update.js
+  - package.json
+extraResources:
+  - from: ../backend/dist/wb-backend
+    to: backend
+  - from: ../frontend/dist
+    to: frontend
+  - from: ../LICENSE   # AGPL-3.0: the license goes with every copy (README 协议)
+    to: LICENSE
+# the Electron already installed and checksum-verified by `npm run electron:install`: nothing is downloaded
+electronDist: node_modules/electron/dist
+npmRebuild: false
+asar: true
+mac:
+  target:
+    - target: dmg
+  category: public.app-category.finance
+  identity: null
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Chromium's own strings (menus, dialogs) in these languages; any other system language falls back to en-US
+  electronLanguages: [zh-CN, zh-TW, en-US, ja]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  include: build/installer.nsh   # install in one pass (see there)

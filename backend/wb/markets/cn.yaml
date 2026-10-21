@@ -1,0 +1,11 @@
+# A-share market profile (spec §3.5 mechanism 2, §4.5, §4.8)
+market: CN
+timezone: Asia/Shanghai
+currency: CNY
+lot_size: 100
+sessions: [["09:30", "11:30"], ["13:00", "15:00"]]
+ready_window: {start: "16:00", end: "20:00", poll_minutes: 10}
+refetch_at: "08:30"
+xcals_calendar: XSHG        # exchange_calendars name, used when no provider calendar is available
+limit_rule: price           # judge limit-up/down by Tushare stk_limit prices
+benchmark: {test: "CN:IDX:000300", prod: "CN:IDX:000300"}

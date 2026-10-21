@@ -1,0 +1,13 @@
+id: psy
+name: PSY 心理线
+doc: N 天里上涨天数的百分比：75 以上偏热，25 以下偏冷。
+group: common
+pane: sub
+params:
+- {id: N, value: 12, range: [2, 100], step: 1}
+- {id: M, value: 6, range: [1, 100], step: 1}
+levels: [25, 50, 75]
+source: 通达信同名指标的公式
+formula: |
+  PSY:COUNT(CLOSE>REF(CLOSE,1),N)/N*100;
+  PSYMA:MA(PSY,M);

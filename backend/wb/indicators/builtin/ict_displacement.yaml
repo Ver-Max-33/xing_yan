@@ -1,0 +1,16 @@
+id: ict_displacement
+name: 位移 K 线
+doc: 又长、影线又短、顺着方向收盘的 K 线（价格被强力推走）：振幅至少是近 14 根平均振幅的 DEV%、实体至少占 BODY%，阳线收在昨收上方（阴线反过来），用框把它圈出来。原脚本默认 60%、不看实体，是给日内图定的，日线上几乎每根都算，这里默认 150% 和 70%。
+group: ict
+pane: main
+params:
+- {id: DEV, value: 150, range: [50, 400], step: 10}
+- {id: BODY, value: 70, range: [0, 100], step: 5}
+source: ArunKBhaskar/PineScript · ICT Displacement Candles
+formula: |
+  均幅:=MA(HIGH-LOW,14);
+  实体:=ABS(CLOSE-OPEN)/(HIGH-LOW)*100;
+  多位移:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE>OPEN AND CLOSE>REF(CLOSE,1);
+  空位移:=HIGH-LOW>=DEV/100*均幅 AND 实体>=BODY AND CLOSE<OPEN AND CLOSE<REF(CLOSE,1);
+  STICKLINE(多位移,HIGH,LOW,8,1),COLORUP;
+  STICKLINE(空位移,HIGH,LOW,8,1),COLORDOWN;

@@ -1,0 +1,15 @@
+id: macd_adj
+name: MACD（可调参数）
+doc: 和图上自带的 MACD 同一个公式，参数可以改（例如组合设置里的 3、9、15）。
+group: common
+pane: sub
+params:
+- {id: SHORT, value: 12, range: [1, 100], step: 1}
+- {id: LONG, value: 26, range: [2, 250], step: 1}
+- {id: MID, value: 9, range: [1, 100], step: 1}
+levels: [0]
+source: 通达信同名指标的公式
+formula: |
+  DIF:EMA(CLOSE,SHORT)-EMA(CLOSE,LONG);
+  DEA:EMA(DIF,MID);
+  MACD:(DIF-DEA)*2,COLORSTICK;

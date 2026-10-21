@@ -1,0 +1,14 @@
+id: long13_no_limit
+name: 横盘蓄势 · 近期没有涨停
+doc: >-
+  原公式去掉"最近 60 根恰好一根涨幅 ≥ 9.8%"这一条（这一版选出的更多）：40 根振幅严格小于 30%，
+  MA60 不比前一根低，收盘在 MA60 上方，排除 ST 和未股改（名称以 S 开头）。
+markets: [CN, JP]
+universe: {exclude: [st, s_share]}
+params:
+  - {id: amplitude, value: 30, range: [20, 45], step: 1, tune: true}
+stages:
+  - id: today
+    kind: event
+    when: "(HHV(H, 40) / LLV(L, 40) - 1) * 100 < $amplitude AND MA(C, 60) >= REF(MA(C, 60), 1) AND C > MA(C, 60)"
+signal_at: today.at

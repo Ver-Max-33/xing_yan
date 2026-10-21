@@ -1,0 +1,12 @@
+id: expma
+name: EXPMA 指数平均线
+doc: 两条指数均线（默认 12、50）：短线在长线上方偏多，交叉看转折。
+group: common
+pane: main
+params:
+- {id: M1, value: 12, range: [1, 500], step: 1}
+- {id: M2, value: 50, range: [1, 500], step: 1}
+source: 通达信同名指标的公式
+formula: |
+  EXP1:EMA(CLOSE,M1);
+  EXP2:EMA(CLOSE,M2);

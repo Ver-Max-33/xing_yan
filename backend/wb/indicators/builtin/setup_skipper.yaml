@@ -1,0 +1,28 @@
+id: setup_skipper
+name: 横盘跳过（Sideways Market Skipper）
+doc: 收盘上穿超级趋势后，在当时的收盘上加 K 倍 ATR(ATRN)（Wilder 平滑）定一个区间上沿；之后收盘第一次越过它、是阳线、且 ATR 高于它的 ATRSMA 日均线（波动在放大）时画上箭头，跳过区间里的来回。下穿时反过来。原脚本里另有几个可选过滤（日内时段等）没有照搬。
+group: setup
+pane: main
+params:
+- {id: STN, value: 10, range: [1, 100], step: 1}
+- {id: MULT, value: 3, range: [0.5, 10], step: 0.5}
+- {id: ATRN, value: 14, range: [1, 100], step: 1}
+- {id: K, value: 1.5, range: [0.5, 5], step: 0.5}
+- {id: ATRSMA, value: 14, range: [1, 100], step: 1}
+source: ArunKBhaskar/PineScript · Trend Following Setup - Sideways Market Skipper
+formula: |
+  ST:=SUPERTREND(STN,MULT);
+  TR:=MAX(MAX(HIGH-LOW,ABS(HIGH-REF(CLOSE,1))),ABS(LOW-REF(CLOSE,1)));
+  AR:=SMA(TR,ATRN,1);
+  上穿:=CROSS(CLOSE,ST.LINE);
+  下穿:=CROSS(ST.LINE,CLOSE);
+  多段:=BARSLAST(上穿)<BARSLAST(下穿);
+  空段:=BARSLAST(下穿)<BARSLAST(上穿);
+  上沿:=VALUEWHEN(上穿,CLOSE+AR*K);
+  下沿:=VALUEWHEN(下穿,CLOSE-AR*K);
+  上升:IF(ST.DIR=1,ST.LINE,DRAWNULL),COLORUP;
+  下降:IF(ST.DIR=-1,ST.LINE,DRAWNULL),COLORDOWN;
+  区间上沿:IF(多段,上沿,DRAWNULL),DOTLINE,COLORUP;
+  区间下沿:IF(空段,下沿,DRAWNULL),DOTLINE,COLORDOWN;
+  DRAWICON(多段 AND CROSS(CLOSE,上沿) AND CLOSE>OPEN AND AR>MA(AR,ATRSMA),LOW,1);
+  DRAWICON(空段 AND CROSS(下沿,CLOSE) AND CLOSE<OPEN AND AR>MA(AR,ATRSMA),HIGH,2);

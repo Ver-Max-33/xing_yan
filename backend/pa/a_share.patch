@@ -1,0 +1,515 @@
+--- a/pa_agent/ai/decision_continuity.py
++++ b/pa_agent/ai/decision_continuity.py
+@@ -79,6 +79,15 @@
+         if branch in ("AIL", "AIS"):
+             return branch
+     return None
++
++
++def always_in_is_weak(stage1_json: dict | None) -> bool:
++    """[形研 A股] the program's §2.4 called it 弱AIS (the structure weak or the pullbacks deep) and the AI kept it: an
++    overridden node still carries the program's reason, which then is not the call in force."""
++    for node in (stage1_json or {}).get("gate_trace") or []:
++        if isinstance(node, dict) and str(node.get("node_id", "")).replace("§", "") in ("2.4", "2.4.0"):
++            return "弱AIS" in str(node.get("reason") or "") and not node.get("overridden_by_ai")
++    return False
+ 
+ 
+ def _timeframe_minutes(timeframe: str) -> int:
+@@ -391,7 +400,16 @@
+     prev_source = "analysis_record"
+     prev_stage1 = stage1_from_previous_record(previous_record)
+ 
+-    if prev_decision is None:
++    # [形研 A股] the workbench says which earlier plan is 上一次 and how many trading days back (design §5.3)
++    known = prev_decision is None and bool(getattr(frame, "previous_plan_known", False))
++    if known:
++        plan = dict(getattr(frame, "previous_plan", ()) or ())
++        if plan:
++            prev_source = "workbench"
++            prev_time = plan.get("time")
++            prev_decision = {k: plan.get(k) for k in ("order_direction", "order_type", "entry_price", "stop_loss_price",
++                                                      "take_profit_price", "invalidation_condition")}
++    elif prev_decision is None:
+         csv_row = load_last_trade_csv_row(symbol, timeframe)
+         if csv_row:
+             prev_source = "trade_csv"
+@@ -406,7 +424,8 @@
+             }
+ 
+     current_ms = getattr(frame, "snapshot_ts_local_ms", None)
+-    bars_since = bars_elapsed_between(prev_time, current_ms, timeframe)
++    bars_since = (max(1, int(getattr(frame, "previous_plan_bars", 1))) if known
++                  else bars_elapsed_between(prev_time, current_ms, timeframe))
+ 
+     (
+         invalidated,
+@@ -441,6 +460,8 @@
+         "tick": tick,
+         "direction": direction,
+         "always_in_branch": always_in,
++        "always_in_weak": always_in_is_weak(stage1_json),   # [形研 A股] for the range-bottom long (A 股规则 1)
++        "cycle_position": str(stage1_json.get("cycle_position") or ""),
+         "previous_cycle_position": str((prev_stage1 or {}).get("cycle_position") or ""),
+         "previous_direction": str((prev_stage1 or {}).get("direction") or ""),
+         "timeframe": timeframe,
+@@ -464,8 +485,8 @@
+             )
+         elif always_in == "AIS":
+             neutral_lines.append(
+-                "- 当前 §2.4=**AIS** → **仅允许做空侧** setup（反弹阻力/上边界/顺势回撤做空）。"
+-                "禁止 §9.0P 支撑做多。"
++                "- 当前 §2.4=**AIS** → A 股不能做空：**不下单**；"
++                "唯一例外见「A 股规则」第 1 条（区间下边界、弱AIS、有合格做多信号棒时可以做多）。"
+             )
+         else:
+             neutral_lines.append(
+@@ -536,7 +557,7 @@
+     if always_in == "AIL":
+         lines.append("   - 当前 **AIL** → 只允许做多侧；禁止做空限价/突破。")
+     elif always_in == "AIS":
+-        lines.append("   - 当前 **AIS** → 只允许做空侧；禁止做多限价/突破。")
++        lines.append("   - 当前 **AIS** → A 股不能做空：不下单；唯一例外见「A 股规则」第 1 条（区间下边界、弱AIS、有合格做多信号棒）。")
+     else:
+         lines.append("   - §2.4 非 Always In → 无强信号则 wait，禁止边界双向刮头皮。")
+ 
+@@ -567,9 +588,10 @@
+     if direction == "neutral":
+         if always_in == "AIL" and curr_sign < 0:
+             return "direction=neutral 且 §2.4=AIL：禁止做空方案"
+-        if always_in == "AIS" and curr_sign > 0:
++        if always_in == "AIS" and curr_sign > 0 and not ctx.get("range_bottom_long"):   # [形研 A股] 规则 1 的例外
+             return "direction=neutral 且 §2.4=AIS：禁止做多方案"
+-        if always_in is None and curr_sign != 0:
++        # [形研 A股] as §9.0P says: 非 Always In 时仅 §9.0=是 且有合格信号棒时可下单 (the program refused every order)
++        if always_in is None and curr_sign != 0 and not (curr_sign > 0 and ctx.get("signal_long")):
+             return "direction=neutral 且 §2.4 非 Always In：禁止无强信号的方向性方案"
+ 
+     if not ctx.get("has_previous_plan"):
+@@ -606,6 +628,15 @@
+     if not isinstance(decision, dict):
+         return stage2
+ 
++    # [形研 A股] the longs a neutral stage 1 allows on a closed signal bar of quality (§9.0P), and at a range's bottom
++    # under a weak AIS (A 股规则 1's exception: a range bottom is nearly always reached by a drift under the EMA)
++    sig = (stage2.get("bar_analysis") or {}).get("signal_bar") or {}
++    signal = bool(sig.get("bar")) and str(sig.get("quality") or "").strip().lower() in ("strong", "medium")
++    bottom = any(isinstance(n, dict) and str(n.get("node_id", "")).replace("§", "") == "6.3"
++                 and str(n.get("answer", "")).strip() == "是" and str(n.get("branch") or "").strip().lower() == "lower"
++                 for n in stage2.get("decision_trace") or [])
++    ctx = {**ctx, "signal_long": signal, "range_bottom_long": signal and bottom and bool(ctx.get("always_in_weak"))
++           and ctx.get("cycle_position") in ("trading_range", "trending_tr")}
+     reason = continuity_violation_reason(ctx, decision)
+     if not reason:
+         return stage2
+--- a/pa_agent/ai/decision_nodes.py
++++ b/pa_agent/ai/decision_nodes.py
+@@ -1722,6 +1722,51 @@
+ 
+ 
+ 
++def judge_range_position(frame: Any) -> NodeFill | None:
++    """[形研 A股] §6.3 from where PA's own features put K1's close in its range, in thirds
++    (market_features.compute_simple_market_features): the AI read that very number and judged §6.3 itself, differently
++    from run to run on the same bars (10-21)."""
++    from pa_agent.ai.market_features import compute_simple_market_features
++
++    f = compute_simple_market_features(frame)
++    where = {"lower_third": ("是", "lower", "下三分之一：下边界"), "middle_third": ("否", "middle", "中间三分之一：区间中部"),
++             "upper_third": ("是", "upper", "上三分之一：上边界")}.get(f.zone)
++    if f.price_position is None or where is None:
++        return None
++    return NodeFill(node_id="6.3", answer=where[0], branch=where[1], bar_range=f"K{f.lookback_bars}-K1",
++                    reason=f"收盘位置分位 {f.price_position:.2f}（近{f.lookback_bars}棒包络 {f.range_low}–{f.range_high}），"
++                           f"在{where[2]}（程序按三等分算）。")
++
++
++def judge_entry_position(frame: Any, decision: dict[str, Any]) -> str | None:
++    """[形研 A股] Where the buy price sits in the range PA measures the close in (compute_simple_market_features, its
++    thirds): the middle third, said plainly, or None. PA's rules put no order there — 「中间位置不挂单」 (§11.3), 「在区间中部
++    入场」 (§14), §9.0P 否 「区间/通道中部」 — but its program measured only the close (10-21)."""
++    from pa_agent.ai.market_features import _zone_from_position, compute_simple_market_features
++
++    f = compute_simple_market_features(frame)
++    try:
++        entry = float(decision["entry_price"])
++    except (TypeError, ValueError, KeyError):
++        return None
++    if f.range_low is None or f.range_high is None or f.range_high <= f.range_low:
++        return None
++    pos = round((entry - f.range_low) / (f.range_high - f.range_low), 3)
++    if _zone_from_position(pos) != "middle_third":
++        return None
++    return (f"买入价在区间中部，不挂单：{_middle_words(f)}，买入价 {entry:.2f} 落在中间那一段（{_middle_band(f)}）。"
++            "区间中间涨跌的机会差不多，PA 在区间里只在靠近底部的地方买。")
++
++
++def _middle_words(f: Any) -> str:
++    return f"近 {f.lookback_bars} 根 K 线在 {f.range_low:.2f}–{f.range_high:.2f} 之间"
++
++
++def _middle_band(f: Any) -> str:
++    w = f.range_high - f.range_low
++    return f"{f.range_low + w / 3:.2f}–{f.range_low + 2 * w / 3:.2f}"
++
++
+ def judge_follow_through(sig: int, features: dict[int, Any]) -> NodeFill:
+ 
+     """§9.5: follow_through_1_2 mapping."""
+@@ -2262,7 +2307,7 @@
+ 
+             continue
+ 
+-        nid = str(item.get("node_id", "")).strip()
++        nid = str(item.get("node_id", "")).strip().lstrip("§").strip()   # [形研] 「§6.3」 is 6.3 too
+ 
+         if nid not in prog_by_id:
+ 
+@@ -2343,7 +2388,7 @@
+ 
+             continue
+ 
+-        nid = str(item.get("node_id", "")).strip()
++        nid = str(item.get("node_id", "")).strip().lstrip("§").strip()   # [形研] 「§6.3」 is 6.3 too
+ 
+         if nid not in prog_by_id:
+ 
+@@ -3073,6 +3118,33 @@
+ 
+         )
+ 
++        # [形研 A股] §6.3 is the zone PA computes, not the AI's call and not overridable, where PA's tree reaches it —
++        # 6.1 = 是, or the AI went to §6.3 itself — and PA's own rule for it holds: 「否，在中间1/3：不交易」
++        _sec6 = {str(x.get("node_id", "")).strip().lstrip("§").strip(): str(x.get("answer", "")).strip()
++                 for x in out["decision_trace"] if isinstance(x, dict)}
++        if _sec6.get("6.1") == "是" or "6.3" in _sec6:
++            fill_63 = judge_range_position(frame)
++            if fill_63 is not None:
++                from pa_agent.ai.stage2_normalizer import _clear_decision_to_no_order
++                from pa_agent.util.trade_metrics import is_long_direction
++
++                final_nodes = [*final_nodes, build_program_trace_node(fill_63)]
++                order = decision.get("order_type") in ("限价单", "突破单", "市价单")
++                if fill_63.branch == "middle" and order:
++                    from pa_agent.ai.market_features import compute_simple_market_features
++
++                    _clear_decision_to_no_order(decision)
++                    f = compute_simple_market_features(frame)
++                    out["terminal"] = {"node_id": "6.3", "outcome": "wait", "label": (
++                        f"区间中部不交易：{_middle_words(f)}，最新收盘 {float(frame.bars[0].close):.2f} 落在中间那一段"
++                        f"（{_middle_band(f)}）。区间中间涨跌的机会差不多，PA 的规矩是等价格到上下边再看。")}
++                elif (order and _sec6.get("6.5") != "是" and is_long_direction(decision.get("order_direction"))
++                      and (why := judge_entry_position(frame, decision))):
++                    # the buy itself mid-range; not after a breakout (§6.5 是), whose test can sit mid-way in the 40 bars;
++                    # a short is the A-share guard's (A 股不能做空)
++                    _clear_decision_to_no_order(decision)
++                    out["terminal"] = {"node_id": "11.3", "outcome": "wait", "label": why}
++
+         # Diagnostic only: record which program nodes the AI overrode.
+         try:
+             from pa_agent.ai.node_coverage import build_node_coverage
+--- a/pa_agent/ai/decision_stance.py
++++ b/pa_agent/ai/decision_stance.py
+@@ -61,7 +61,8 @@
+         "无已收盘信号棒 → §9.0=否，**必须**评估 §9.0P；"
+         "§9.0P=是 时可输出限价单，signal_bar.quality 可为 weak/invalid。\n"
+         "- **direction=neutral 约束**：neutral 时 §9.0P **仅允许顺 §2.4**（AIL→只做多侧，"
+-        "AIS→只做空侧；§2.4=否→默认 wait）；禁止上下边界双向刮头皮。\n"
++        # [形研 A股] as the continuity rules say it: no short here
++        "AIS→A 股不能做空：不下单，唯一例外见「A 股规则」第 1 条；§2.4=否→默认 wait）；禁止上下边界双向刮头皮。\n"
+         "- **方案连续性**：若上一轮可执行方案**未失效**，默认 wait；"
+         "同结构位 N 根内禁止反手（详见阶段二「方案连续性」块）。\n"
+         "- **计划型限价 K1 对照**：只看 entry 相对 K1.close 方向；影线触及 entry 不算失效。\n"
+--- a/pa_agent/ai/prompt_assembler.py
++++ b/pa_agent/ai/prompt_assembler.py
+@@ -37,6 +37,18 @@
+ )
+ 
+ # ── Language (both stages, thinking + final output) ───────────────────────────
++
++# [形研 A股] the four A-share rules, first in the shared system prompt (design 2026-10-20 §3.1–§3.4)
++_A_SHARE_RULES_ZH = """
++## A 股规则（本市场专用，优先于下文任何与之冲突的说法）
++
++1. **只做多、只做现货**：本市场只能用自己的钱买入股票，不能做空，不融资融券、不加杠杆，也不碰期货、期权等衍生品。阶段一判断为看空（direction=bearish）时，阶段二一律 `order_type=不下单`。§2.4 为 AIS（一边倒向下）时也不下单，只有一个例外：阶段一 direction=neutral、`cycle_position` 为 trading_range 或 trending_tr、§2.4 的程序判定写的是「弱AIS」，并且阶段二 §6.3 判定价格就在区间下边界（answer=是，branch=lower）、§9 有已收盘的合格做多信号棒（signal_bar 的 quality 为 strong 或 medium，比如收在高位的阳线、跌破下边界后又收回的阳线）——这时可以做多：在信号棒高点上方 1 跳挂突破单，或在下边界、支撑附近挂限价单，照常走 §10.1–§10.3。这个例外里，§2.4、§6.3、§9.0P、§14、§15 中「AIS 中不做多」「neutral 则 wait」的说法不适用；信号棒只看它本身的质量，不要求它已经突破上方阻力。不下单时，在 watch_points 里写清楚出现什么信号才会转为可以买入。下文凡是要求给出做空方案（做空限价单、做空突破单、做空市价单）的地方，在本市场都按「不下单」处理。
++2. **T+1**：买入当天不能卖出。止损和止盈最早在下一个交易日才能执行；买入当天就跌破止损的，只能第二天开盘卖出。所以日线的止损至少要离买入价 1 个 ATR14（K 线表里 K1 那一行的 ATR14）：近两年全 A 股的统计，止损只离 0.75 个 ATR 时，买入当天就跌破止损的占成交的 19%，0.5 个 ATR 时 36%，1 个 ATR 时 10%；当天跌破的，第二天开盘约一半已经在止损下面。离得不够的，程序会把止损挪到离买入价 1 个 ATR，再按这个止损算盈亏比。
++3. **涨跌停**：每只股票每天有涨跌幅限制（主板 10%，创业板和科创板 20%，北交所 30%，风险警示股按交易所现行规定）。挂在涨停价上的买单往往买不到，跌停封死时往往卖不出，止损可能要往后顺延。买入价不能高于下一个交易日的涨停价。K 线表的「涨跌停」列标出了收在涨停、收在跌停和一字板的日子；表头写着下一个交易日的涨停价和跌停价。
++4. **最小价位 0.01 元**：所有价格都取到分（两位小数），「加 1 跳」就是加 0.01 元。
++5. **日线的止损过滤**：§10.1 表格和 §10.2 里「止损超过区间宽度 10%」「超过通道宽度 40% / 50%」「超过尖峰高度 50%」，以及「资金管理止损（8跳动/信号棒60%高度）」这几条是按日内图定的，在本市场的日线上不用——日线一天的波动常常就超过区间宽度的 10%，8 跳只有 0.08 元。日线只看止损是否超过 2 倍 ATR14（K 线表里 K1 那一行的 ATR14），超过才算过大；盈亏比和交易者方程照常按 §10.3。止损照样放在结构失效位（信号棒或波段极点外 1 跳），不为了过这一条去缩小或放大。
++6. **区间位置由程序算**：§6.3「当前价格是否在区间边界」以程序算的「收盘位置分位」为准（见「程序结构辅助特征 · 区间位置」）：下三分之一 = 下边界（answer=是，branch=lower），中间三分之一 = 中部（answer=否，branch=middle），上三分之一 = 上边界（answer=是，branch=upper）。不要自己另判：走到 §6.3 时（§6.1=是），程序按这个填 §6.3，在中部就不下单；§6.1=否、按通道走时不用 §6.3。买入价也按同一套三等分查：走交易区间这条路时，买入价落在中间三分之一，程序不下单（突破之后回踩的除外）——在区间里做多，买入价放在下三分之一。
++""".strip()
+ 
+ _LANGUAGE_ZH_RULE = """
+ ## 语言要求（阶段一、阶段二均必须遵守）
+@@ -355,7 +367,7 @@
+ 【下面展示的是 JSON 结构骨架，复制结构时不要带任何 ``` 标记】
+ {
+   "decision": {
+-    "order_direction": "做多|做空|null（禁止写 bearish/bullish/short/long）",
++    "order_direction": "做多|null（禁止写 bearish/bullish/short/long）",
+     "order_type": "限价单|突破单|市价单|不下单",
+     "entry_price": null,
+     "entry_basis_bar": null,
+@@ -950,6 +962,7 @@
+     def _build_shared_system_prompt_inner(self) -> str:
+         """Persona + full binary decision tree (both stages)."""
+         system_parts = [
++            _A_SHARE_RULES_ZH,
+             _LANGUAGE_ZH_RULE,
+             _PA_TERMINOLOGY_ZH,
+             _OPENCLAW_AGENT_NO_TOOLS_RULE,
+@@ -979,9 +992,11 @@
+     def _render_kline_table(frame: KlineFrame, limit: int | None = None) -> str:
+         """Render the K-line data as a text table (newest bar first)."""
+         lines = [
+-            "序号 | 时间                | 开盘价    | 最高价    | 最低价    | 收盘价    | 阳阴 | 成交量    | EMA20     | ATR14",
+-            "-----+--------------------+----------+----------+----------+----------+------+----------+-----------+----------",
++            "序号 | 时间                | 开盘价    | 最高价    | 最低价    | 收盘价    | 阳阴 | 成交量    | EMA20     | ATR14      | 涨跌停",
++            "-----+--------------------+----------+----------+----------+----------+------+----------+-----------+------------+------",
+         ]
++        if frame.next_limit_up is not None:   # [形研 A股] the next day's limit prices (design §3.3)
++            lines.insert(0, f"下一个交易日：涨停价 {frame.next_limit_up:.2f}，跌停价 {frame.next_limit_down:.2f}（A 股涨跌幅限制）")
+         bars = frame.bars[:limit] if limit is not None else frame.bars
+         for i, bar in enumerate(bars):
+             ema = frame.indicators.ema20[i]
+@@ -990,10 +1005,12 @@
+             atr_str = f"{atr:.4f}" if not math.isnan(atr) else "N/A"
+             yang_yin = bar_candle_direction_label(bar)
+             dt = format_epoch_for_display(bar.ts_open, short=True)
++            dt = dt[:10] if frame.timeframe == "1d" else dt   # [形研 A股] daily bars show the date, prices in cents
++            mark = frame.limit_marks[i] if i < len(frame.limit_marks) and frame.limit_marks[i] else "—"
+             lines.append(
+-                f"{bar.seq:<4} | {dt:<19} | {bar.open:<9.4f} | {bar.high:<9.4f} | "
+-                f"{bar.low:<9.4f} | {bar.close:<9.4f} | {yang_yin:<4} | {bar.volume:<9.0f} | "
+-                f"{ema_str:<10} | {atr_str}"
++                f"{bar.seq:<4} | {dt:<19} | {bar.open:<9.2f} | {bar.high:<9.2f} | "
++                f"{bar.low:<9.2f} | {bar.close:<9.2f} | {yang_yin:<4} | {bar.volume:<9.0f} | "
++                f"{ema_str:<10} | {atr_str:<10} | {mark}"
+             )
+         lines.append(_KLINE_INDICATOR_NOTE)
+         return "\n".join(lines)
+@@ -1591,9 +1608,10 @@
+         Standalone mode (OpenClaw Agent and similar):
+           [system, user(S2 task + full K-line tables)]
+         """
+-        from pa_agent.ai.deepseek_client import supports_kv_prefix_chain
+-
+         if use_prefix_chain is None:
++            # [形研] imported only when needed: the workbench always passes use_prefix_chain and has no deepseek_client
++            from pa_agent.ai.deepseek_client import supports_kv_prefix_chain
++
+             use_prefix_chain = supports_kv_prefix_chain(provider_settings)
+ 
+         chain_after_s1 = bool(use_prefix_chain and stage1_messages)
+--- a/pa_agent/ai/router.py
++++ b/pa_agent/ai/router.py
+@@ -20,7 +20,6 @@
+ ]
+ _BEARISH_CHANNEL_FILES = [
+     "下跌通道分析识别.txt",
+-    "下跌通道交易策略.txt",
+ ]
+ _CHANNEL_WIDTH_FILE = "文件13-窄通道与宽通道策略.txt"
+ 
+@@ -30,7 +29,6 @@
+ ]
+ _BEARISH_SPIKE_FILES = [
+     "极速下跌分析识别.txt",
+-    "极速下跌交易策略.txt",
+ ]
+ 
+ _RANGE_FILES = [
+--- a/pa_agent/data/base.py
++++ b/pa_agent/data/base.py
+@@ -77,6 +77,13 @@
+     bars: tuple[KlineBar, ...]
+     indicators: IndicatorBundle
+     snapshot_ts_local_ms: int   # milliseconds since epoch, local time
++    # [形研 A股] limits per bar, next-day limits, the workbench's previous plan (design 2026-10-20 §3.3, §5.3)
++    limit_marks: tuple[str, ...] = ()
++    next_limit_up: float | None = None
++    next_limit_down: float | None = None
++    previous_plan_known: bool = False
++    previous_plan: tuple[tuple[str, object], ...] = ()
++    previous_plan_bars: int = 1
+ 
+ 
+ # ── DataSource ABC ────────────────────────────────────────────────────────────
+--- a/pa_agent/orchestrator/__init__.py
++++ b/pa_agent/orchestrator/__init__.py
+@@ -1,6 +1 @@
+ """PA Agent orchestrator package."""
+-
+-from pa_agent.orchestrator.free_chat import FreeChatSession
+-from pa_agent.orchestrator.two_stage import TwoStageOrchestrator
+-
+-__all__ = ["FreeChatSession", "TwoStageOrchestrator"]
+--- a/pa_agent/util/__init__.py
++++ b/pa_agent/util/__init__.py
+@@ -1,7 +1 @@
+ """PA Agent utility package."""
+-
+-from pa_agent.util.threading import CancelToken, OrchestratorEvent
+-from pa_agent.util.event_bus import EventBus
+-from pa_agent.util.logging import configure_logging, update_api_key
+-
+-__all__ = ["CancelToken", "OrchestratorEvent", "EventBus", "configure_logging", "update_api_key"]
+--- a/pa_agent/util/trade_metrics.py
++++ b/pa_agent/util/trade_metrics.py
+@@ -1,6 +1,7 @@
+ """Risk/reward and estimated win-rate helpers for trading decisions."""
+ from __future__ import annotations
+ 
++import math
+ from typing import Any
+ 
+ 
+@@ -194,6 +195,29 @@
+     return None
+ 
+ 
++def widen_stop_for_t_plus_1(decision: dict[str, Any], *, kline_frame: Any = None) -> bool:
++    """[形研 A股] T+1: a share bought today cannot be sold today, so a long's stop closer to the entry than K1's ATR14 (a
++    day's normal move) is often crossed on the very day the buy fills — 19% of fills at 0.75 ATR, 10% at one ATR (all
++    A-shares 2024–2026) — and sold only at the next open. Such a stop goes out to one ATR under the entry, on the tick."""
++    if decision.get("order_type") not in ("限价单", "突破单", "市价单") or not is_long_direction(decision.get("order_direction")):
++        return False
++    try:
++        entry, sl = float(decision["entry_price"]), float(decision["stop_loss_price"])
++    except (TypeError, ValueError, KeyError):
++        return False
++    from pa_agent.ai.market_features import _current_atr   # PA's own: K1's ATR14, as the K-line table shows it
++    from pa_agent.util.price_tick import infer_price_tick_from_frame
++
++    atr = _current_atr(kline_frame) if kline_frame is not None else None
++    if not atr or sl >= entry or entry - sl >= atr - 1e-9:   # a stop not under the entry is for the checks to refuse
++        return False
++    tick = infer_price_tick_from_frame(kline_frame) or 0.0
++    new_sl = round(math.floor((entry - atr) / tick + 1e-9) * tick, 10) if tick else entry - atr
++    decision.setdefault("ai_stop_loss_price", sl)
++    decision["stop_loss_price"] = new_sl
++    return True
++
++
+ def adjust_decision_stop_for_tp1_rr_cap(
+     decision: dict[str, Any],
+     *,
+@@ -203,12 +227,13 @@
+     """Widen stop_loss_price in-place when TP1 RR exceeds the program cap."""
+     if decision.get("order_type") not in ("限价单", "突破单", "市价单"):
+         return False
++    t1 = widen_stop_for_t_plus_1(decision, kline_frame=kline_frame)   # [形研 A股] first one ATR out (T+1), then the cap
+     try:
+         entry = float(decision["entry_price"])
+         tp = float(decision["take_profit_price"])
+         sl = float(decision["stop_loss_price"])
+     except (TypeError, ValueError, KeyError):
+-        return False
++        return t1
+ 
+     if tick is None and kline_frame is not None:
+         from pa_agent.util.price_tick import infer_price_tick_from_frame
+@@ -219,7 +244,8 @@
+         entry, tp, sl, decision.get("order_direction"), tick=tick
+     )
+     if new_sl is None or abs(new_sl - sl) < 1e-12:
+-        return False
++        return t1
++    decision.setdefault("ai_stop_loss_price", sl)   # [形研] the AI's own stop: its win rate is for this one
+     decision["stop_loss_price"] = new_sl
+     return True
+ 
+@@ -282,6 +308,10 @@
+     from pa_agent.util.price_tick import infer_price_tick_from_frame
+ 
+     tick = infer_price_tick_from_frame(kline_frame) or 0.0
++    try:   # [形研] §9.0P 「K1 已触及 stop 仍判方案无效」: the stop the AI set at the structure, not the program's wider one
++        sl = float(decision.get("ai_stop_loss_price", sl))
++    except (TypeError, ValueError):
++        pass
+     k_high = float(bar.high)
+     k_low = float(bar.low)
+     k_close = float(bar.close)
+@@ -303,46 +333,46 @@
+     if long is True:
+         if pending_planned:
+             # Planned buy limit: entry must stay below market close (waiting for dip).
+-            if k_close < entry - tick:
++            if k_close < entry - tick - 1e-9:   # [形研] one tick over the close is allowed, also in floats
+                 errors.append(
+                     f"limit long (planned): K1 close {k_close:.6g} is below entry {entry:.6g}; "
+                     "reprice entry or 不下单"
+                 )
+         else:
+-            if k_low <= entry + tick:
++            if k_low <= entry + 1e-9:   # [形研] touched means reached: one tick above did not fill it
+                 errors.append(
+                     f"limit long: K1 low {k_low:.6g} already touched/below entry {entry:.6g}; "
+                     "pending buy limit is stale — use 市价单, reprice, or 不下单"
+                 )
+-            if k_close < entry - tick:
++            if k_close < entry - tick - 1e-9:   # [形研] as above
+                 errors.append(
+                     f"limit long: K1 close {k_close:.6g} is below entry {entry:.6g}; "
+                     "do not keep a buy limit above market without repricing"
+                 )
+-        if k_low <= sl + tick:
++        if k_low <= sl + 1e-9:   # [形研] reached, not one tick above: PA's own stop sits one tick under the signal bar
+             errors.append(
+                 f"limit long: K1 low {k_low:.6g} already at/below stop {sl:.6g}; "
+                 "plan invalid — order_type=不下单"
+             )
+     elif long is False:
+         if pending_planned:
+-            if k_close > entry + tick:
++            if k_close > entry + tick + 1e-9:   # [形研] as for a long
+                 errors.append(
+                     f"limit short (planned): K1 close {k_close:.6g} is above entry {entry:.6g}; "
+                     "reprice entry or 不下单"
+                 )
+         else:
+-            if k_high >= entry - tick:
++            if k_high >= entry - 1e-9:   # [形研] reached, as for a long
+                 errors.append(
+                     f"limit short: K1 high {k_high:.6g} already reached/exceeded entry {entry:.6g}; "
+                     "pending sell limit is stale — use 市价单, reprice, or 不下单"
+                 )
+-            if k_close > entry + tick:
++            if k_close > entry + tick + 1e-9:   # [形研] as for a long
+                 errors.append(
+                     f"limit short: K1 close {k_close:.6g} is above entry {entry:.6g}; "
+                     "do not keep a sell limit below market without repricing"
+                 )
+-        if k_high >= sl - tick:
++        if k_high >= sl - 1e-9:   # [形研] reached, as for a long
+             errors.append(
+                 f"limit short: K1 high {k_high:.6g} already at/above stop {sl:.6g}; "
+                 "plan invalid — order_type=不下单"
+@@ -428,7 +458,14 @@
+     reward = float(rr["reward"])
+     min_rr = min_risk_reward_ratio(decision_stance)
+ 
+-    if ratio < min_rr:
++    own_rr = compute_risk_reward(entry, tp, decision.get("ai_stop_loss_price", sl), direction)
++    short = ratio < min_rr - 1e-9   # [形研] as the maximum below: in floats 1:1 on the cent grid often reads 0.99999…
++    if short and own_rr is not None and float(own_rr["ratio"]) >= min_rr - 1e-9:
++        errors.append(   # [形研 A股] the AI's own stop paid; one ATR out for T+1 it no longer does
++            f"decision prices: T+1 — stop moved to {sl:.6g}, one ATR under entry, makes risk_reward "
++            f"{rr['ratio_text']}, below minimum {min_rr:.2f}:1; set order_type=不下单 with 10.3=否"
++        )
++    elif short:
+         errors.append(
+             f"decision prices: risk_reward {rr['ratio_text']} is below minimum "
+             f"{min_rr:.2f}:1 for this stance; adjust take_profit/stop_loss or set "
+@@ -444,6 +481,11 @@
+         )
+ 
+     win_rate = _parse_win_rate(decision.get("estimated_win_rate"))
++    # [形研] the equation on the AI's own three prices: its win rate was estimated for its own stop, not for the wider
++    # one the TP1 cap sets (the prompt says the same: 只要 §10.3 交易者方程通过即可)
++    own = compute_risk_reward(entry, tp, decision.get("ai_stop_loss_price", sl), direction)
++    if own is not None:
++        risk, reward = float(own["risk"]), float(own["reward"])
+     if win_rate is None:
+         errors.append(
+             "decision.estimated_win_rate: required integer 0–100 when placing an order"

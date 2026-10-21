@@ -1,0 +1,14 @@
+id: tpl_macd_bull_div
+name: MACD 底背离
+doc: >-
+  通用模板：两个已确认的低点，后一个价格更低、DIF 却更高（底背离），之后几根以内（参数，默认 10 根）DIF 上穿 DEA（金叉）那一根
+  收盘后出信号。箱体里的背离不作箱体条件，MACD 有适用边界。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d]}
+params:
+  - {id: within, value: 10, range: [3, 20], step: 1, tune: true, unit: 根}
+stages:
+  - {id: div, kind: structure, use: MACD_DIV, with: {kind: bull}}
+  - {id: cross, label: MACD 金叉, kind: event, when: "CROSS(MACD.DIF, MACD.DEA)", within: {stage: div, bars: $within}}
+signal_at: cross.at
+judge: {fail: "LLV(L, 30)", days: 60}

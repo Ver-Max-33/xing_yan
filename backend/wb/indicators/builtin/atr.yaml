@@ -1,0 +1,11 @@
+id: atr
+name: ATR 真实波幅
+doc: 每天的真实波幅（含跳空）和它的 N 日均值：越大，价格一天能走得越远；止损、仓位常按它定。
+group: common
+pane: sub
+params:
+- {id: N, value: 14, range: [1, 100], step: 1}
+source: 通达信同名指标的公式
+formula: |
+  TR:MAX(MAX((HIGH-LOW),ABS(REF(CLOSE,1)-HIGH)),ABS(REF(CLOSE,1)-LOW)),COLORGRAY;
+  ATR:MA(TR,N);

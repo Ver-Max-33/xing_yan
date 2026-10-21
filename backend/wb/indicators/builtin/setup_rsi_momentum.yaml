@@ -1,0 +1,24 @@
+id: setup_rsi_momentum
+name: RSI 方向动量
+doc: 第一信号（圆点）：RSI(N) 上穿 UP 且在它的 MAN 日均线上方；第二信号（箭头）：之后 RSI 一直在 UP 上方、收盘第一次越过第一信号那根的最高价。向下反过来（RSI 下穿 DN）。原脚本还有回撤、翻转、背离几种扫描，这里只做它默认的「连续突破」。
+group: setup
+pane: main
+params:
+- {id: N, value: 14, range: [2, 100], step: 1}
+- {id: MAN, value: 14, range: [1, 100], step: 1}
+- {id: UP, value: 60, range: [50, 90], step: 1}
+- {id: DN, value: 40, range: [10, 50], step: 1}
+source: ArunKBhaskar/PineScript · Momentum Setup - RSI Directional Momentum
+formula: |
+  R:=RSI(N);
+  RM:=MA(R,MAN);
+  多1:=CROSS(R,UP) AND R>RM;
+  空1:=CROSS(DN,R) AND R<RM;
+  H1:=VALUEWHEN(多1,HIGH);
+  L1:=VALUEWHEN(空1,LOW);
+  多2:=CROSS(CLOSE,H1) AND BARSLAST(R<=UP)>BARSLAST(多1);
+  空2:=CROSS(L1,CLOSE) AND BARSLAST(R>=DN)>BARSLAST(空1);
+  DRAWICON(多1,LOW,3),COLORUP;
+  DRAWICON(空1,HIGH,3),COLORDOWN;
+  DRAWICON(多2,LOW,1);
+  DRAWICON(空2,HIGH,2);

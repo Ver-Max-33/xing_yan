@@ -1,0 +1,14 @@
+id: limit_streak
+name: 近期有连续涨停（连板）
+doc: >-
+  选股器：最近 N 根里出现过连续两个以上收盘涨停。N 最大可到 200，常用 20 或 30（长颈鹿不需要那么多天）。
+markets: [CN, JP]
+universe: {exclude: [st]}
+params:
+  - {id: boards, value: 2, range: [2, 5], step: 1, tune: true}
+  - {id: days, value: 20, range: [5, 200], step: 5, tune: true, unit: 根}
+stages:
+  - id: today
+    kind: event
+    when: "EXIST(LIMIT_UP_STREAK >= $boards, $days)"
+signal_at: today.at

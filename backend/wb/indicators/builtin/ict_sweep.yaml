@@ -1,0 +1,18 @@
+id: ict_sweep
+name: 流动性扫荡
+doc: 最高价刺破最近的摆动高点、收盘又回到它下方（扫掉上方的止损单，下箭头）；最低价刺破最近的摆动低点、收盘回到上方（上箭头）。按 ICT 的定义写：原脚本比较前三个摆动点的相对位置，规则更多，这里只看最近一个。
+group: ict
+pane: main
+params:
+- {id: LEFT, value: 5, range: [1, 100], step: 1}
+- {id: RIGHT, value: 5, range: [1, 50], step: 1}
+source: ArunKBhaskar/PineScript · ICT Liquidity Sweep Pattern Scanner
+formula: |
+  PH:=REF(HIGH,RIGHT)=HHV(HIGH,LEFT+RIGHT+1) AND REF(HIGH,RIGHT)>REF(HHV(HIGH,LEFT),RIGHT+1);
+  PL:=REF(LOW,RIGHT)=LLV(LOW,LEFT+RIGHT+1) AND REF(LOW,RIGHT)<REF(LLV(LOW,LEFT),RIGHT+1);
+  高:=REF(VALUEWHEN(PH,REF(HIGH,RIGHT)),1);
+  低:=REF(VALUEWHEN(PL,REF(LOW,RIGHT)),1);
+  扫高:=HIGH>高 AND CLOSE<高 AND REF(HIGH,1)<=高;
+  扫低:=LOW<低 AND CLOSE>低 AND REF(LOW,1)>=低;
+  DRAWICON(扫高,HIGH,2);
+  DRAWICON(扫低,LOW,1);

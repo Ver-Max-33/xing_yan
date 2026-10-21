@@ -1,0 +1,23 @@
+id: ict_mss
+name: 市场结构转换 MSS
+doc: 最近 N 根里扫过下方流动性（刺破摆动低点又收回）之后，收盘越过最近的摆动高点：结构从下跌转为上涨（MSS）；反过来是从上涨转为下跌。
+group: ict
+pane: main
+params:
+- {id: LEFT, value: 5, range: [1, 100], step: 1}
+- {id: RIGHT, value: 5, range: [1, 50], step: 1}
+- {id: N, value: 10, range: [1, 60], step: 1}
+source: ArunKBhaskar/PineScript · ICT Market Structure Shift (MSS)
+formula: |
+  PH:=REF(HIGH,RIGHT)=HHV(HIGH,LEFT+RIGHT+1) AND REF(HIGH,RIGHT)>REF(HHV(HIGH,LEFT),RIGHT+1);
+  PL:=REF(LOW,RIGHT)=LLV(LOW,LEFT+RIGHT+1) AND REF(LOW,RIGHT)<REF(LLV(LOW,LEFT),RIGHT+1);
+  高:=REF(VALUEWHEN(PH,REF(HIGH,RIGHT)),1);
+  低:=REF(VALUEWHEN(PL,REF(LOW,RIGHT)),1);
+  扫高:=HIGH>高 AND CLOSE<高 AND REF(HIGH,1)<=高;
+  扫低:=LOW<低 AND CLOSE>低 AND REF(LOW,1)>=低;
+  多转:=CROSS(CLOSE,高) AND COUNT(扫低,N)>=1;
+  空转:=CROSS(低,CLOSE) AND COUNT(扫高,N)>=1;
+  DRAWICON(多转,LOW,1);
+  DRAWTEXT(多转,LOW,'MSS'),COLORUP;
+  DRAWICON(空转,HIGH,2);
+  DRAWTEXT(空转,HIGH,'MSS'),COLORDOWN;

@@ -1,0 +1,56 @@
+id: box_breakout_after_rally
+name: 涨一段后横盘缩量、放量突破箱顶
+doc: >-
+  规格书 §5.2 的完整示例：上涨 ≥ 20% 之后横成中箱，箱体末端缩量，放量（对箱沿附近的参考量）突破并且 MACD 刚金叉在零轴上，
+  之后 3 根收盘都在箱顶上方。正在箱体中的股票进潜伏名单。数字都是可调参数，要用标注和条件体检校准。
+markets: [CN, JP]
+universe:
+  exclude: [st, suspended, listed_lt_120d]
+  min_avg_amount_20d: {CN: 50000000, JP: 300000000}
+params:
+  - {id: box_max_width, value: 0.15, range: [0.08, 0.30], step: 0.01, tune: true, unit: "%"}
+  - {id: box_tol, value: 0.015, range: [0.005, 0.03], step: 0.005, unit: "%"}
+  - {id: vol_spike, value: 2.0, range: [1.5, 3.0], step: 0.25, tune: true, unit: 倍}
+stages:
+  - id: rally
+    label: 上涨段
+    kind: window
+    before: {stage: box, bars: [1, 60]}
+    during:
+      - {id: runup, label: 涨幅, expr: "RUNUP(H, L) >= 0.20", unit: "%"}
+  - id: box
+    kind: structure
+    use: BOX
+    with:
+      scale: mid
+      tol: $box_tol
+      min_touch: {top: 2, bottom: 2}
+      inside: 0.8
+      spike: {return_within: 3}
+      max_width: $box_max_width
+    during:
+      - {id: shrink, label: 箱末缩量, expr: "MEAN(V, last=10) / MEAN(V, of=rally) < 0.7", unit: 倍}
+  - id: breakout
+    kind: event
+    on: box.break_up
+    at:
+      - {id: volume, label: 突破量, expr: "BAND_VOL_RATIO(box) >= $vol_spike"}
+      - {id: macd, label: MACD 零上金叉, expr: "BARSLAST(CROSS(MACD.DIF, MACD.DEA)) <= 3 AND MACD.DIF > 0"}
+  - id: hold
+    label: 站稳箱顶
+    kind: window
+    after: {stage: breakout, bars: [1, 3]}
+    all: "C > box.top"
+signal_at: hold.end
+watch_stage: box
+ranking:
+  - {expr: "box.width", dir: asc, label: 箱宽, unit: "%"}
+  - {expr: "BAND_VOL_RATIO(box)@breakout", dir: desc, label: 突破量, unit: 倍}
+plan:
+  entry: close
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

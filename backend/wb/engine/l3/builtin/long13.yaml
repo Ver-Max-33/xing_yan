@@ -1,0 +1,15 @@
+id: long13
+name: 横盘蓄势 · 近期有一次涨停
+doc: >-
+  选股公式：最近 60 根里恰好一根收盘涨幅 ≥ 9.8%，40 根振幅严格小于 30%（30 是参数），MA60 不比前一根低，
+  收盘在 MA60 上方，排除 ST。还排除名称以 S 开头的股票（未股改，2026 年还有 S佳通），按现在的名称排除；"当天有成交"由只看有成交的
+  K 线保证。选出来的只是候选：逐只看过再加进"养箱"自选。
+markets: [CN]
+universe: {exclude: [st, s_share]}
+params:
+  - {id: amplitude, value: 30, range: [20, 45], step: 1, tune: true}
+stages:
+  - id: today
+    kind: event
+    when: "COUNT(C >= REF(C, 1) * 1.098, 60) == 1 AND (HHV(H, 40) / LLV(L, 40) - 1) * 100 < $amplitude AND MA(C, 60) >= REF(MA(C, 60), 1) AND C > MA(C, 60)"
+signal_at: today.at

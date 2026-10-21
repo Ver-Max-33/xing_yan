@@ -1,0 +1,17 @@
+.env
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.tmp
+node_modules/
+dist/
+test-results/
+playwright-report/
+.superpowers/
+.hypothesis/
+# PyInstaller work files (scripts/build-*.sh / .ps1)
+backend/build/
+# Claude Code local settings (this machine only)
+.claude/

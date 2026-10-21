@@ -1,0 +1,16 @@
+id: stoch_rsi
+name: 随机 RSI
+doc: 把随机指标用在 RSI 上：RSI 在它最近区间里的位置，比 RSI 更快地到达高低两端。
+group: common
+pane: sub
+params:
+- {id: LENRSI, value: 14, range: [2, 100], step: 1}
+- {id: LENSTOCH, value: 14, range: [2, 100], step: 1}
+- {id: SMOOTHK, value: 3, range: [1, 50], step: 1}
+- {id: SMOOTHD, value: 3, range: [1, 50], step: 1}
+levels: [20, 80]
+source: TradingView 内置指标的公开算法（Stochastic RSI）
+formula: |
+  R:=RSI(LENRSI);
+  K:MA(100*(R-LLV(R,LENSTOCH))/(HHV(R,LENSTOCH)-LLV(R,LENSTOCH)),SMOOTHK);
+  D:MA(K,SMOOTHD);

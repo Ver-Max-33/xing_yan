@@ -1,0 +1,45 @@
+id: tpl_shang_heng_shang
+name: 涨一段后短期窄幅横盘再突破（上横上）
+doc: >-
+  箱体模板：一段上涨之后、两个月以内的窄箱（上横），放量突破箱顶那一根收盘后出信号。
+  短箱不要求 3–6 个月，黑马基因里不适用的删掉。级别默认中箱（15–59 根）、箱内不超过 40 根；只要几天到一个月的
+  小箱，把 scale 改成 short。进箱前那一段的涨幅、箱宽、突破量、箱内最多几根都是参数。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: rally, value: 0.20, range: [0.10, 0.50], step: 0.1, tune: true, unit: "%"}
+  - {id: width, value: 0.15, range: [0.06, 0.24], step: 0.03, tune: true, unit: "%"}
+  - {id: vol, value: 1.0, range: [0.6, 2.0], step: 0.2, tune: true, unit: 倍}
+  - {id: max_bars, value: 40, range: [20, 60], step: 5, unit: 根}
+stages:
+  - id: rally
+    label: 上涨段
+    kind: window
+    before: {stage: box, bars: [1, 40]}
+    during:
+      - {id: runup, label: 涨幅, expr: "RUNUP(H, L) >= $rally"}
+  - id: box
+    kind: structure
+    use: BOX
+    with: {scale: mid, context: 上横}
+    at:
+      - {id: narrow, label: 箱宽, expr: "box.width <= $width"}
+    during:
+      - {id: within_two_months, label: 箱体根数, expr: "COUNT(C > 0) <= $max_bars"}
+  - id: breakout
+    kind: event
+    on: box.break_up
+    at:
+      - {id: volume, label: 突破量, expr: "BAND_VOL_RATIO(box) >= $vol"}
+signal_at: breakout.at
+watch_stage: box
+ranking:
+  - {expr: "box.width", dir: asc, label: 箱宽, unit: "%"}
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

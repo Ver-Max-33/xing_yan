@@ -1,0 +1,14 @@
+id: trix
+name: TRIX 三重指数平滑
+doc: 收盘三次指数平滑后的变化率：过滤掉短线的抖动，看中期方向；上穿信号线偏多。
+group: common
+pane: sub
+params:
+- {id: N, value: 12, range: [2, 100], step: 1}
+- {id: M, value: 9, range: [1, 100], step: 1}
+levels: [0]
+source: 通达信同名指标的公式
+formula: |
+  MTR:=EMA(EMA(EMA(CLOSE,N),N),N);
+  TRIX:(MTR-REF(MTR,1))/REF(MTR,1)*100;
+  MATRIX:MA(TRIX,M);

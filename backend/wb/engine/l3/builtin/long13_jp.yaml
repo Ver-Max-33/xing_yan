@@ -1,0 +1,13 @@
+id: long13_jp
+name: 横盘蓄势 · 近期有过涨停（日股版）
+doc: >-
+  原公式的日股改写：9.8% 是 A 股 10% 涨跌幅板块的近似，日股没有对应写法，改用"最近 60 根内恰好一次收盘涨停"；
+  其余条件同原公式（40 根振幅严格小于 30%，MA60 不比前一根低，收盘在 MA60 上方）。
+markets: [JP]
+params:
+  - {id: amplitude, value: 30, range: [20, 45], step: 1, tune: true}
+stages:
+  - id: today
+    kind: event
+    when: "COUNT(LIMIT_UP_CLOSE, 60) == 1 AND (HHV(H, 40) / LLV(L, 40) - 1) * 100 < $amplitude AND MA(C, 60) >= REF(MA(C, 60), 1) AND C > MA(C, 60)"
+signal_at: today.at

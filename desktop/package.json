@@ -1,0 +1,19 @@
+{
+  "name": "stock-workbench-desktop",
+  "private": true,
+  "version": "0.5.1",
+  "description": "Thin Electron shell for the stock research workbench (spec §3.3)",
+  "main": "main.js",
+  "scripts": {
+    "electron:install": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "test:e2e": "playwright test",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  }
+}

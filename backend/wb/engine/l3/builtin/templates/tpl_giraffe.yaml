@@ -1,0 +1,39 @@
+id: tpl_giraffe
+name: 连续涨停后横盘几天再突破（长颈鹿）
+doc: >-
+  箱体模板：腿是一段快速上涨——大长腿两个以上连续涨停，小矮腿一个板或几根大阳；腰是上涨后两个月以内、
+  越扁越好的短箱（向下找线、横向等线的回调都算腰，这里先用横向的箱）；脖子是腰的突破，那一根收盘后出信号。已经加速走了
+  几波之后的停顿不是腰，所以腰不能在高位。连板数默认 2（大长腿），小矮腿改成 1。小箱本身最宽画到 12%（A 股 2013–2026
+  的小箱：一半在 5% 左右、九成在 9.5% 以内），所以箱宽这个参数只在 12% 以下起作用，默认 12% 等于不筛；"越扁越好"就把它调低。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: boards, value: 2, range: [1, 4], step: 1, tune: true}
+  - {id: width, value: 0.12, range: [0.03, 0.12], step: 0.01, tune: true, unit: "%"}
+stages:
+  - id: leg
+    label: 大长腿
+    kind: window
+    before: {stage: waist, bars: [1, 15]}
+    during:
+      - {id: boards, label: 连板数, expr: "MAX(LIMIT_UP_STREAK) >= $boards"}
+  - id: waist
+    kind: structure
+    use: BOX
+    with: {scale: short, position: [低位, 中继]}
+    at:
+      - {id: flat, label: 箱宽, expr: "waist.width <= $width"}
+  - id: neck
+    kind: event
+    on: waist.break_up
+signal_at: neck.at
+watch_stage: waist
+ranking:
+  - {expr: "waist.width", dir: asc, label: 箱宽, unit: "%"}
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "waist.bottom * 0.985", label: 腰底（破线照规则走）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

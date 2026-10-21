@@ -1,0 +1,43 @@
+id: tpl_yang_liang_qun
+name: 箱内阳量群后向上突破（阳量群）
+doc: >-
+  箱体模板：箱里的量能比之前高出两到三倍、红肥绿瘦（阳线的量多、阴线的量少），价格却还在箱里
+  小阴小阳——叫阳量群，是量能异动，要多留个心眼；箱子向上突破那一根收盘后出信号。例子多是天品、变异天品里的阳量群
+  （威尔泰、亚士创能），所以小箱、中箱、大箱都算。量能抬高按箱里的均量 ÷ 箱前 40 根（两个月）的均量；红肥绿瘦按箱里收盘
+  高于开盘那些 K 线的量占总量的比例。阳量群本来就放着量，突破那天常常并不比前一天放量，不好判断，所以突破量只和前 5 根的
+  均量比。上市不满 40 根就开始的箱，量能抬高无法判断。没定死的数字都是参数。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: lift, value: 2.0, range: [1.0, 4.0], step: 0.5, tune: true, unit: 倍}
+  - {id: red, value: 0.6, range: [0.5, 0.8], step: 0.05, tune: true, unit: "%"}
+  - {id: vol, value: 1.2, range: [0.8, 2.4], step: 0.2, tune: true, unit: 倍}
+stages:
+  - id: pre
+    label: 箱前两个月
+    kind: window
+    before: {stage: box, bars: [1, 40]}
+  - id: box
+    kind: structure
+    use: BOX
+    with: {scale: [short, mid, long]}
+    during:
+      - {id: lift, label: 箱内量能抬高, expr: "MEAN(V) / MEAN(V, of=pre) >= $lift", unit: 倍}
+      - {id: red, label: 箱内红肥绿瘦, expr: "SUM(IF(C > O, V, 0)) / SUM(V) >= $red", unit: "%"}
+  - id: breakout
+    kind: event
+    on: box.break_up
+    at:
+      - {id: vol, label: 突破量对前 5 根, expr: "VOL_RATIO(5) >= $vol", unit: 倍}
+signal_at: breakout.at
+watch_stage: box
+ranking:
+  - {expr: "MEAN(V, of=box) / MEAN(V, of=pre)", dir: desc, label: 箱内量能抬高, unit: 倍}
+plan:
+  entry: cross   # 盘中第一次碰到潜伏等着突破的箱顶就买（盯盘的买法；设计 2026-10-11 §6、台账 2026-10-11-trade-plans-p2）
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

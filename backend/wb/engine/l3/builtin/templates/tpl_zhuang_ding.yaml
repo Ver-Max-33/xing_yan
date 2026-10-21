@@ -1,0 +1,19 @@
+id: tpl_zhuang_ding
+name: 涨停涨到箱顶没收上去（撞顶涨停）
+doc: >-
+  箱体模板：涨停价恰好顶到大箱顶，收盘没越过箱沿。这也当作一种突破，所以模板默认撞顶那一根就出信号；
+  不算的话，改成等下一次收盘越线（§6.2 澄清点）。它仍受涨停约束，不等于突破已经完成；大盘弱时要加倍观察。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+stages:
+  - {id: box, kind: structure, use: BOX, with: {scale: [mid, long]}}
+  - {id: hit, kind: event, on: box.limit_hit_top}
+signal_at: hit.at
+plan:
+  entry: open
+  stop:
+    - {line: "box.false_bottom", label: 假底}
+    - {line: "box.bottom * 0.985", label: 箱底（没有假底时）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

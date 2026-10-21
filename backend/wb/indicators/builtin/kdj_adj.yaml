@@ -1,0 +1,15 @@
+id: kdj_adj
+name: KDJ（可调参数）
+doc: 和图上自带的 KDJ 同一个算法，参数可以改。
+group: common
+pane: sub
+params:
+- {id: N, value: 9, range: [2, 100], step: 1}
+- {id: M1, value: 3, range: [1, 50], step: 1}
+- {id: M2, value: 3, range: [1, 50], step: 1}
+levels: [20, 50, 80]
+source: 通达信同名指标的公式
+formula: |
+  K:KDJ(N,M1,M2).K;
+  D:KDJ(N,M1,M2).D;
+  J:KDJ(N,M1,M2).J;

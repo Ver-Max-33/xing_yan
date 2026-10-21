@@ -1,0 +1,13 @@
+id: bbi
+name: BBI 多空指标
+doc: 3、6、12、24 日四条均线的平均：收盘在 BBI 上方偏多、下方偏空。
+group: common
+pane: main
+params:
+- {id: M1, value: 3, range: [1, 250], step: 1}
+- {id: M2, value: 6, range: [1, 250], step: 1}
+- {id: M3, value: 12, range: [1, 250], step: 1}
+- {id: M4, value: 24, range: [1, 250], step: 1}
+source: 通达信同名指标的公式
+formula: |
+  BBI:(MA(CLOSE,M1)+MA(CLOSE,M2)+MA(CLOSE,M3)+MA(CLOSE,M4))/4;

@@ -1,0 +1,16 @@
+id: ict_swings
+name: 摆动高低点（外部流动性）
+doc: 左边 LEFT 根、右边 RIGHT 根里最高（最低）的那根是摆动高点（低点）：要等右边 RIGHT 根走完才确认，线从确认那天起才有，画在那根上，向右延伸到被突破为止。ICT 叫外部流动性：止损单常堆在这些价位外侧。
+group: ict
+pane: main
+params:
+- {id: LEFT, value: 5, range: [1, 100], step: 1}
+- {id: RIGHT, value: 5, range: [1, 50], step: 1}
+- {id: END, value: 1, range: [0, 3], step: 1}
+- {id: MAXN, value: 10, range: [0, 200], step: 1}
+source: ArunKBhaskar/PineScript · ICT External Range Liquidity
+formula: |
+  PH:=REF(HIGH,RIGHT)=HHV(HIGH,LEFT+RIGHT+1) AND REF(HIGH,RIGHT)>REF(HHV(HIGH,LEFT),RIGHT+1);
+  PL:=REF(LOW,RIGHT)=LLV(LOW,LEFT+RIGHT+1) AND REF(LOW,RIGHT)<REF(LLV(LOW,LEFT),RIGHT+1);
+  DRAWLEVEL(PH,REF(HIGH,RIGHT),END,RIGHT,MAXN),COLORDOWN;
+  DRAWLEVEL(PL,REF(LOW,RIGHT),END,RIGHT,MAXN),COLORUP;

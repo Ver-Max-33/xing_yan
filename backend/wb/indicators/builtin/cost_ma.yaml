@@ -1,0 +1,13 @@
+id: cost_ma
+name: 成本均线
+doc: N 天里按成交量加权的平均成交价，也就是这几天买进的人的平均成本：价格在成本线上方，这段时间买的人多数赚钱。
+group: common
+pane: main
+params:
+- {id: N1, value: 5, range: [1, 250], step: 1}
+- {id: N2, value: 13, range: [1, 250], step: 1}
+- {id: N3, value: 34, range: [1, 250], step: 1}
+formula: |
+  成本1:SUM(VWAP*VOL,N1)/SUM(VOL,N1);
+  成本2:SUM(VWAP*VOL,N2)/SUM(VOL,N2);
+  成本3:SUM(VWAP*VOL,N3)/SUM(VOL,N3);

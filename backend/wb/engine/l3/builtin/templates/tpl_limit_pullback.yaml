@@ -1,0 +1,15 @@
+id: tpl_limit_pullback
+name: 涨停后缩量回调（A 股）
+doc: >-
+  通用模板（A 股）：最近几天里有过收盘涨停，今天没涨停、收跌，而且缩量回调（量比小），那一根收盘后出信号。日股的涨停写法
+  不同（按价格档位），所以只适用于 A 股。
+markets: [CN]
+universe: {exclude: [st, listed_lt_120d]}
+params:
+  - {id: days, value: 5, range: [2, 10], step: 1, tune: true, unit: 根}
+  - {id: shrink, value: 0.7, range: [0.4, 1.0], step: 0.05, tune: true, unit: 倍}
+stages:
+  - id: today
+    kind: event
+    when: "EXIST(LIMIT_UP_CLOSE, $days) AND NOT LIMIT_UP_CLOSE AND C < REF(C, 1) AND VOL_RATIO(5) <= $shrink"
+signal_at: today.at

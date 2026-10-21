@@ -1,0 +1,12 @@
+id: obv
+name: OBV 能量潮
+doc: 上涨日加上成交量、下跌日减去，累计起来：价格横盘而 OBV 走高，量在先行。成交量按股算（通达信按手），数值大 100 倍，形状一样。
+group: common
+pane: sub
+params:
+- {id: M, value: 30, range: [1, 250], step: 1}
+source: 通达信同名指标的公式
+formula: |
+  VA:=IF(CLOSE>REF(CLOSE,1),VOL,-VOL);
+  OBV:SUM(IF(CLOSE=REF(CLOSE,1),0,VA),0);
+  MAOBV:MA(OBV,M);

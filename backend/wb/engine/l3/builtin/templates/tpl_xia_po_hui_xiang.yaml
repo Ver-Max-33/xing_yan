@@ -1,0 +1,30 @@
+id: tpl_xia_po_hui_xiang
+name: 跌破箱底后很快收回（下破回箱）
+doc: >-
+  箱体模板：收盘跌破箱底，跌破之后缩量——回箱那一根和它之前共 5 根的均量，不高于
+  再往前 20 根的均量（× quiet；回得快时那 20 根就在跌破之前）——很快又收回箱内——回到破箱线以内（箱底 × (1 − 1.5%)，和判断跌破是同一条线；图上画的是箱底线，收盘在箱底线下面一点也算回来了），回箱那一根收盘后出信号。买点就在回到密集箱下沿的位置（惠威科技 2018 是一例）。回箱
+  以后还要看守不守得住，守不住就要防着回到更低的区域（§5.4 假底）。多快算"很快"由回箱窗口 R 决定（小箱、中箱 5 根，
+  大箱 10 根）。
+markets: [CN, JP]
+universe: {exclude: [st, listed_lt_120d, resumed_lt_20d]}
+params:
+  - {id: quiet, value: 1.0, range: [0.5, 1.5], step: 0.05, tune: true, unit: 倍}
+stages:
+  - {id: box, kind: structure, use: BOX, with: {scale: [mid, long]}}
+  - {id: down, kind: event, on: box.break_down}
+  - id: back
+    kind: event
+    on: box.return
+    within: {stage: down, bars: 10}
+    at:
+      - {id: quiet_below, label: 破位后缩量, expr: "MA(V, 5) / REF(MA(V, 20), 5) <= $quiet", unit: 倍}
+signal_at: back.at
+plan:
+  entry: close
+  stop:
+    - {line: "LLV(L, 10)", label: 跌破那段的最低点}
+  take:
+    - {line: "box.top", share: 0.5, label: 箱顶（回箱后上沿是压力）}
+  exit:
+    - {when: "C < MA(C, 5)", label: 跌破 5 日线（两线 / 三线卖法的日线读法）}
+  days: 60

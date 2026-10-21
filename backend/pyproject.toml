@@ -1,0 +1,55 @@
+[project]
+name = "wb"
+version = "0.5.1"
+description = "Stock research workbench backend"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "polars>=1.20",
+  "httpx>=0.27",
+  "pyyaml>=6.0",
+  "keyring>=25.0",
+  "pandas>=2.2",
+  "openpyxl>=3.1",
+  "yfinance>=1.0",
+  "exchange-calendars>=4.5",
+  "tzdata>=2024.1",            # Windows has no system time-zone database for zoneinfo
+  "pypinyin>=0.55.0",          # 拼音首字母搜索
+  "fastapi>=0.141.1",
+  "uvicorn>=0.53.0",
+  "numba>=0.67.0",
+  "pydantic>=2.13.5",          # rules as data (spec §5.2); already locked through fastapi
+  "cryptography>=50.0.1",      # Tachibana's public-key login: the session URLs come RSA-OAEP encrypted (spec §4.8)
+  "pypdf==6.19.0",
+  "jsonschema>=4.26.0",        # PA_Agent checks its answers with it (design 2026-10-20 §8; dev branch only)
+]
+
+[project.scripts]
+wb = "wb.cli:main"
+
+[dependency-groups]
+build = [
+    "pyinstaller==6.22.3",
+]
+dev = [
+    "hypothesis>=6.168.1",
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wb", "pa/pa_agent"]   # pa_agent: PA_Agent's vendored core (pa/NOTICE.md)
+dev-mode-dirs = [".", "pa"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: calls real network APIs (run with: uv run pytest -m live)"]
+addopts = "-m 'not live'"
+# starlette 1.x would like httpx2 for its TestClient; the app already depends on httpx (affects tests only)
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
+
+[tool.uv]
+# Supply-chain cooling period: only resolve releases older than this date (docs/security.md).
+exclude-newer = "2026-09-25T00:00:00Z"
