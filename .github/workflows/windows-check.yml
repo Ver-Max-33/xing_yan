@@ -202,16 +202,18 @@ jobs:
           $p = Start-Process (Get-Item dist\xingyan-0.0.1-win-x64.exe).FullName -ArgumentList "/S" -Wait -PassThru
           if ($p.ExitCode) { throw "安装失败，退出码 $($p.ExitCode)" }
           Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "形研*" } |
-            Select-Object DisplayName, DisplayVersion, InstallLocation | Format-List
+            Select-Object DisplayName, DisplayVersion, UninstallString | Format-List
       - name: 在应用里点「更新到」：下载、核对、关掉、静默安装、重新打开
         working-directory: desktop
         run: |
           $installed = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "形研*" }
-          $env:WB_UPDATE_APP = Join-Path $installed.InstallLocation "形研.exe"
+          # electron-builder keeps InstallLocation under the app's own key, not this uninstall entry; the entry names the
+          # uninstaller, which sits in the install folder (10-21: the first run of this job found no InstallLocation)
+          $env:WB_UPDATE_APP = Join-Path (Split-Path ($installed.UninstallString -replace '^"([^"]+)".*$', '$1')) "形研.exe"
           npx playwright test tests/update.spec.mjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object { $_.DisplayName -like "形研*" } |
-            Select-Object DisplayName, DisplayVersion, InstallLocation | Format-List
+            Select-Object DisplayName, DisplayVersion, UninstallString | Format-List
       - name: 失败时留下现场（1 天）
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
