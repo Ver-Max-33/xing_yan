@@ -18,8 +18,8 @@ def test_register_and_duplicate():
 def test_autoload_imports_submodules(tmp_path, monkeypatch):
     pkg = tmp_path / "plugpkg"
     pkg.mkdir()
-    (pkg / "__init__.py").write_text("")
-    (pkg / "one.py").write_text("LOADED = True\n")
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "one.py").write_text("LOADED = True\n", encoding="utf-8")
     monkeypatch.syspath_prepend(str(tmp_path))
     autoload("plugpkg")
     import sys

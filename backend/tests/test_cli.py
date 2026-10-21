@@ -259,7 +259,7 @@ def test_on_windows_the_backends_own_processes_end_with_it(tmp_path):
             "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
             f"open(r'{out}', 'w').write(str(p.pid)); os._exit(0)")   # a worker running, the backend gone
     subprocess.run([sys.executable, "-c", code], cwd=backend, env={**os.environ, "PYTHONPATH": str(backend)}, timeout=60, check=True)
-    pid = int(out.read_text())
+    pid = int(out.read_text(encoding="utf-8"))
     time.sleep(2)
     left = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True).stdout
     assert str(pid) not in left

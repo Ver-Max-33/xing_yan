@@ -120,7 +120,7 @@ def test_a_part_done_step_by_step_reads_back_its_finished_steps_and_drops_a_line
     assert keep.rows(("marks", "CN")) == []
     keep.add(("marks", "CN"), [True, False])
     keep.add(("marks", "CN"), [False, False])
-    with open(next((tmp_path / "run.chunks").glob("*")), "a") as f:
+    with open(next((tmp_path / "run.chunks").glob("*")), "a", encoding="utf-8") as f:
         f.write("[tru")                                              # the app quit while a line was written
     assert keep.rows(("marks", "CN")) == [[True, False], [False, False]]
     keep.add(("marks", "CN"), [True, True])

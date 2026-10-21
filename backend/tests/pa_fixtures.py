@@ -134,19 +134,19 @@ def answers(frame: KlineFrame, kind: str = "limit", r: float = 1.0) -> list[str]
     pending 限价单 2% under K1 with the stop 4% under the entry, TP1 at `r` R and TP2 one R further, confidence and win
     rate 60. `kind="short"`: the same mirrored above K1 for 做空; `kind="wait"`: stage 1's gate says wait (no stage 2)."""
     if kind == "wait":
-        return [(DATA / "stage1_wait.json").read_text()]
+        return [(DATA / "stage1_wait.json").read_text(encoding="utf-8")]
     side = -1 if kind == "short" else 1
     entry = round(frame.bars[0].close * (1 - 0.02 * side), 2)
     stop = round(entry * (1 - 0.04 * side), 2)
     values = {"entry": entry, "stop": stop, "tp1": round(entry + r * (entry - stop), 2),
               "tp2": round(entry + (r + 1) * (entry - stop), 2), "conf": 60, "win": 60}
-    text = (DATA / "stage2_limit.json").read_text()
+    text = (DATA / "stage2_limit.json").read_text(encoding="utf-8")
     for k, v in values.items():
         text = text.replace(f'"{{{k}}}"', str(v)).replace(f"{{{k}}}", str(v))
     s2 = json.loads(text)
     if kind == "short":
         s2["decision"]["order_direction"], s2["bar_analysis"]["always_in"] = "做空", "short"
-    return [(DATA / "stage1_proceed.json").read_text(), json.dumps(s2, ensure_ascii=False)]
+    return [(DATA / "stage1_proceed.json").read_text(encoding="utf-8"), json.dumps(s2, ensure_ascii=False)]
 
 
 def transport(replies: list[str]) -> httpx.MockTransport:
