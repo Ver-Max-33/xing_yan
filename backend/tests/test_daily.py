@@ -383,9 +383,22 @@ def test_a_manual_run_during_the_session_scans_without_fetching_or_a_delay(paths
     write(paths, 320)
     d = daily(paths)
     FakePipeline.calls = []
-    assert d.run_now("CN", now=datetime(2026, 10, 2, 10, 0, tzinfo=SH))                # a Friday, the market open
+    assert d.run_now("CN", now=datetime(2026, 10, 1, 10, 0, tzinfo=SH))                # the market open, Wednesday stored
     assert wait_until(lambda: not d.running("CN"))
     assert FakePipeline.calls == [] and d.state("CN")["status"] == "done"
+
+
+def test_a_manual_run_before_the_window_catches_up_the_days_missed_and_the_failure_goes(paths):
+    # 11-12: a failed update held 13 days back; the app restarted with the fix at night, and 立即更新 only scanned again
+    # until the window opened (16:00), the failure still in view. Now it fetches the missed days, as the morning would
+    write(paths, 320)                                                                  # stored up to Wednesday 9-30
+    d = daily(paths)
+    d._save("CN", status="error", message="更新出错：tushare 50101", retry_after="2026-10-02T00:10:00")
+    now = datetime(2026, 10, 2, 7, 0, tzinfo=SH)                                       # Friday, before 08:30
+    assert d.run_now("CN", now=now) and wait_until(lambda: not d.running("CN"))
+    assert FakePipeline.calls == [("update", "CN", date(2026, 10, 1), False)]           # up to Thursday, nothing waited for
+    st = d.state("CN")
+    assert st["status"] == "done" and st["retry_after"] is None and "50101" not in (st["message"] or "")
 
 
 def test_a_delay_reads_in_chinese(paths):
@@ -809,7 +822,8 @@ def test_a_manual_run_says_whether_it_fetches_or_only_scans_again(paths):
     write(paths, 320)
     d = daily(paths)
     assert d.fetches("CN", datetime(2026, 10, 2, 16, 5, tzinfo=SH))                    # a Friday after the close
-    assert not d.fetches("CN", datetime(2026, 10, 2, 10, 0, tzinfo=SH))                # the market open
+    assert not d.fetches("CN", datetime(2026, 10, 1, 10, 0, tzinfo=SH))                # the market open, nothing missed
+    assert d.fetches("CN", datetime(2026, 10, 2, 10, 0, tzinfo=SH))                    # open, but Thursday never came
     d._save("CN", status="interrupted")
     assert not d.fetches("CN", datetime(2026, 10, 2, 16, 5, tzinfo=SH))
     assert not Daily(lambda m: paths, pipeline=lambda p, m: FakePipeline(p, m), markets=("CN",)).fetches(

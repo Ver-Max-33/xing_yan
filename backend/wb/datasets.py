@@ -114,8 +114,10 @@ DATASETS: dict[str, Dataset] = {
             "net_mf": F,                      # yuan
             "source": S,
         }, "year"),
-        # 解禁 (design 2026-10-15 §5.2): one row a holder's unlock as first announced; known from its ann_date
-        Dataset("unlocks", ("listing_id", "float_date", "holder", "share_type"), {
+        # 解禁 (design 2026-10-15 §5.2, 11-11): one row a holder's unlock as each notice gives it, so a later notice never
+        # replaces the first (danger.unlock_windows reads each unlock's first); known from its ann_date. Until 11-11 the
+        # unlocks were fetched by unlock day into `unlocks`, which share_float refuses now: that table is no longer read
+        Dataset("unlock_notices", ("listing_id", "float_date", "holder", "share_type", "ann_date"), {
             "listing_id": S, "float_date": D,
             "holder": S, "share_type": S,     # "" when the source names none
             "ann_date": D,

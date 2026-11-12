@@ -658,12 +658,21 @@ class Daily:
         self._stop.set()
 
     def fetches(self, market: str, now: datetime | None = None) -> bool:
-        """Whether a manual run fetches: not on demo data, not with a 补历史 to finish, not before the market's day is over
-        (there is nothing new to fetch) — then it only scans what there is again."""
+        """Whether a manual run fetches (`_manual`) — else it only scans what there is again."""
+        return self._manual(market, now or datetime.now().astimezone())[0]
+
+    def _manual(self, market: str, now: datetime) -> tuple[bool, date | None]:
+        """Whether a manual run fetches, and up to which day (None: today). Not on demo data, not with a 补历史 to finish;
+        before the market's day is over only the trading days the stored data misses before it, as the morning's catch-up
+        would (11-12: restarted at night after a failed update, 立即更新 scanned again until 16:00, the failure in view)."""
         if self._demo(market) or self.state(market)["status"] == "interrupted":
-            return False
-        local, m = self._local(market, now or datetime.now().astimezone()), load_market(market)
-        return not (self.pipeline(self.paths_of(market), market).is_trading_day(local.date()) and local.time() < m.ready_start)
+            return False, None
+        local, m = self._local(market, now), load_market(market)
+        pipe = self.pipeline(self.paths_of(market), market)
+        if not (pipe.is_trading_day(local.date()) and local.time() < m.ready_start):
+            return True, None
+        prev, latest = pipe.previous_trading_day(local.date()), Store(self.paths_of(market), market).latest()
+        return (True, prev) if prev is not None and latest is not None and latest.as_of < prev else (False, None)
 
     def run_now(self, market: str, now: datetime | None = None) -> bool:
         """A manual run (立即扫描, 立即更新): update without waiting for the window once the day is over, then scan the
@@ -671,15 +680,17 @@ class Daily:
         def go():
             t = now or datetime.now().astimezone()
             paths, failed, pipe = self.paths_of(market), None, None
-            if self.fetches(market, t):
+            fetch, day = self._manual(market, t)
+            if fetch:
                 self._save(market, status="updating", message=None)
                 self._doing(market, "update")
                 self._probe(paths, market)
                 pipe = self.pipeline(paths, market)
                 pipe.log = self._fetch_log(market, "update")
                 try:
-                    if pipe.update(None, wait=False) is None:
+                    if pipe.update(day, wait=False) is None:
                         pipe = None   # nothing new published: nothing to sample
+                    self._save(market, retry_after=None)   # an earlier update's failure is over: the scan no longer keeps it
                 except DataDelayed as e:
                     failed, pipe = {"status": "delayed", "message": _zh(e, market)}, None
                 except Exception as e:  # noqa: BLE001

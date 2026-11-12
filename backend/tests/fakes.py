@@ -6,8 +6,9 @@ import httpx
 
 def tushare_server(tables: dict, denied: set[str] = frozenset(), calls: list | None = None,
                    columns: dict[str, set[str]] | None = None):
-    """tables: api_name -> list of row dicts (or a callable(params) -> list of row dicts). `columns`: the fields an api
-    has; one asked for that it does not have is left out of the answer, as Tushare does (no error)."""
+    """tables: api_name -> list of row dicts (or a callable(params) -> list of row dicts, or an error {"code", "msg"} as
+    Tushare answers one). `columns`: the fields an api has; one asked for that it does not have is left out of the
+    answer, as Tushare does (no error)."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -20,6 +21,8 @@ def tushare_server(tables: dict, denied: set[str] = frozenset(), calls: list | N
             return httpx.Response(200, json={"code": 40203, "msg": "抱歉，您没有访问该接口的权限", "data": None})
         rows = tables.get(api, [])
         rows = rows(params) if callable(rows) else rows
+        if isinstance(rows, dict):
+            return httpx.Response(200, json={"code": rows["code"], "msg": rows["msg"], "data": None})
         rows = rows[params.get("offset", 0): params.get("offset", 0) + params.get("limit", 10**9)]
         return httpx.Response(200, json={"code": 0, "msg": None, "data": {
             "fields": fields, "items": [[r.get(f) for f in fields] for r in rows]}})

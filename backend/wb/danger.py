@@ -208,7 +208,9 @@ def unlock_windows(unlocks: pl.DataFrame, stocks: pl.DataFrame, days: pl.DataFra
     td_day = _td(days, day)
     if td_day is None or stocks.is_empty():
         return pl.DataFrame(schema=WINDOW_SCHEMA)
-    known = unlocks.filter(pl.col("ann_date").is_not_null() & (pl.col("ann_date") <= day)).join(stocks.select("listing_id", "list_date"), on="listing_id")
+    known = (unlocks.filter(pl.col("ann_date").is_not_null() & (pl.col("ann_date") <= day))
+             .sort("ann_date").unique(["listing_id", "float_date", "holder", "share_type"], keep="first")   # told again: the first notice
+             .join(stocks.select("listing_id", "list_date"), on="listing_id"))
     open_ = days.rename({"date": "unlock_day"})
     ann = (known.group_by("listing_id", "float_date", "list_date").agg(pl.col("float_ratio").sum().alias("ratio"), pl.col("ann_date").min(),
                                                                        pl.col("share_type").unique().sort().str.join("、").alias("types"))
@@ -248,7 +250,7 @@ def active(store: Store, ids: list[str], day: date | None = None, snap: Snapshot
     ids = [lid for lid in ids if lid in sh_sz]
     days = open_days(store, snap)
     td_day = _td(days, day)
-    un = store.read("unlocks", snap) if snap.manifest.get("unlocks") else empty("unlocks")
+    un = store.read("unlock_notices", snap) if snap.manifest.get("unlock_notices") else empty("unlock_notices")
     out["unlocks_from"] = un["float_date"].min().isoformat() if un.height else None
     if not ids or td_day is None:
         return out

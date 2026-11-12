@@ -25,12 +25,13 @@ from wb.datasets import DATASETS, empty
 from wb.markets import load_market
 
 ORDER = ["calendar", "instruments", "status_intervals", "industry", "corp_actions", "bars_1d",
-         "valuation", "moneyflow", "index_bars_1d", "index_members", "financials", "unlocks", "float_holders"]
-DAILY = ["calendar", "instruments", "corp_actions", "bars_1d", "valuation", "index_bars_1d", "financials", "moneyflow", "unlocks",
+         "valuation", "moneyflow", "index_bars_1d", "index_members", "financials", "unlock_notices", "float_holders"]
+DAILY = ["calendar", "instruments", "corp_actions", "bars_1d", "valuation", "index_bars_1d", "financials", "moneyflow", "unlock_notices",
          "float_holders"]
 WEEKLY = ["status_intervals", "industry", "index_members"]  # slow to fetch, rarely change: refreshed on Mondays
 LATER = ["valuation", "moneyflow"]  # fetched by the day, often later than the bars: completed on its own when it comes (§4.5)
-HISTORY = ["moneyflow", "float_holders"]  # added to the catalog after the backfill: their whole history once, then as usual
+HISTORY = ["moneyflow", "float_holders", "unlock_notices"]  # added to the catalog after the backfill: their whole history
+                                                           # once (unlock notices: six years, the provider says), then as usual
 READY_SHARE = 0.98     # a day's rows count as there at 98% of its traded listings
 CALENDAR_AHEAD = 90    # days of calendar kept ahead: 解禁前 counts 20 open days to an unlock, 33–37 calendar days across 春节 / 国庆
 # the close a report's time is read against before a date (財務 PIT): TSE closed at 15:00 until it moved to 15:30 on

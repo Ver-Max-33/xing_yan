@@ -38,10 +38,15 @@ DATASET_APIS = {  # dataset -> (required apis, optional apis)
     "index_bars_1d": (["index_daily"], []),
     "financials": (["income_vip"], ["balancesheet_vip", "cashflow_vip", "fina_indicator_vip"]),
     "moneyflow": (["moneyflow"], []),
-    "unlocks": (["share_float"], []),
+    "unlock_notices": (["share_float"], []),
     "float_holders": (["top10_floatholders"], []),
 }
-UNLOCK_BACK, UNLOCK_AHEAD = 7, 60  # calendar days around the update day asked of share_float (design 2026-10-15 §5.2)
+# share_float answers by announcement day or by stock only since 2026-11 (50101 "ts_code和ann_date必填一项"; several codes in
+# one call answer nothing, without an error): every calendar day's notices (design 2026-10-15 §5.2, 11-11)
+UNLOCK_AGAIN = timedelta(days=7)        # asked again each update: Tushare can add a day's notices days later
+UNLOCK_LOOKBACK = timedelta(days=2192)  # the first fetch: six years of notices (3,194 calls with the IPO lists' pages, 455 s, 11-11)
+UNLOCK_LEAD = timedelta(days=1827)      # five years, the longest a first notice is trusted to come before its unlock
+                                        # (stored on 10-26: half 186 days, the longest 1,672 days, a 首发 lock-up)
 
 
 class TushareError(Exception):
@@ -64,9 +69,9 @@ class QuotaExceeded(TushareError): ...  # daily/hourly quota used up: stop loudl
 
 def _error(code: int, msg: str) -> TushareError:
     # Every limit message ends with "权限的具体详情访问：…", so "权限" alone means nothing.
-    m = re.search(r"每分钟最多访问该接口(\d+)次", msg)
+    m = re.search(r"每分钟最多访问该接口(\d+)次|频率超限[(（](\d+)次/分钟", msg)   # the second: most APIs' wording (10-13)
     if m:
-        return RateLimited(code, msg, int(m.group(1)))
+        return RateLimited(code, msg, int(m.group(1) or m.group(2)))
     if re.search(r"每(天|小时)最多访问该接口", msg):
         return QuotaExceeded(code, msg)
     if ("没有" in msg and "权限" in msg) or "积分不足" in msg:
@@ -84,7 +89,7 @@ class Tushare(Provider):
     unit_kinds = {"bars_1d": "date", "valuation": "date", "corp_actions": "date",
                   "instruments": "all", "status_intervals": "all", "calendar": "all",
                   "industry": "all", "index_bars_1d": "all", "index_members": "all", "financials": "period",
-                  "moneyflow": "date", "unlocks": "all", "float_holders": "period"}
+                  "moneyflow": "date", "unlock_notices": "all", "float_holders": "period"}
 
     def __init__(self, market: str = "CN", token: str | None = None, http: HttpClient | None = None,
                  sleep=None):
@@ -298,23 +303,26 @@ class Tushare(Provider):
             pl.lit(self.name).alias("source"),
         )
 
-    def _unlocks(self, end: date, **_) -> pl.DataFrame:
-        """The unlocks due from a week before `end` to two months after, one float date a call (a month at once can pass
-        the 100,000-row offset cap); each holder's row as first announced (the same unlock comes again in later notices,
-        its share count printed to another precision)."""
+    def _unlock_notices(self, start: date, end: date, **_) -> pl.DataFrame:
+        """The notices of every calendar day from a week before `start` to `end`, one day a call (paged: an IPO's 网下 list
+        runs to 10,000 rows). The first fetch, asked from the first bar, keeps to six years, and to the unlocks from a year
+        back on: an older one's first notice may come before the days asked, and its day would be wrong. A notice of an
+        unlock before the days asked is about one stored already."""
         fields = "ts_code,ann_date,float_date,float_share,float_ratio,holder_name,share_type"
-        days = [end + timedelta(days=k) for k in range(-UNLOCK_BACK, UNLOCK_AHEAD + 1)]
-        frames = [f for f in self._each(lambda d: self.query("share_float", fields, float_date=f"{d:%Y%m%d}"), days) if f.height]
+        since = max(start - UNLOCK_AGAIN, end - UNLOCK_LOOKBACK)
+        keep = since + UNLOCK_LEAD if since == end - UNLOCK_LOOKBACK else since
+
+        def notices(d: date) -> pl.DataFrame:
+            df = self.query("share_float", fields, ann_date=f"{d:%Y%m%d}")
+            return (df.select(tushare_id_expr().alias("listing_id"), ymd("float_date"),
+                              pl.col("holder_name").fill_null("").alias("holder"), pl.col("share_type").fill_null("").alias("share_type"),
+                              ymd("ann_date").fill_null(d).alias("ann_date"), pl.col("float_share").cast(pl.Float64),
+                              pl.col("float_ratio").cast(pl.Float64), pl.lit(self.name).alias("source"))
+                    .filter(pl.col("float_date") >= keep))
+        frames = [f for f in self._each(notices, [since + timedelta(days=k) for k in range((end - since).days + 1)]) if f.height]
         if not frames:
-            return empty("unlocks")
-        df = pl.concat(frames, how="diagonal_relaxed")
-        return (df.select(tushare_id_expr().alias("listing_id"), ymd("float_date"),
-                          pl.col("holder_name").fill_null("").alias("holder"), pl.col("share_type").fill_null("").alias("share_type"),
-                          ymd("ann_date"), pl.col("float_share").cast(pl.Float64), pl.col("float_ratio").cast(pl.Float64),
-                          pl.lit(self.name).alias("source"))
-                .filter(pl.col("float_date").is_not_null())
-                .sort("ann_date", nulls_last=True)
-                .unique(["listing_id", "float_date", "holder", "share_type"], keep="first", maintain_order=True))
+            return empty("unlock_notices")
+        return pl.concat(frames).unique(["listing_id", "float_date", "holder", "share_type", "ann_date"], keep="first", maintain_order=True)
 
     def _float_holders(self, unit: str, **_) -> pl.DataFrame:
         """One report period's top-10 float holders of every company (one call a page, ~58,000 rows: 12 pages, ~30 s on

@@ -150,10 +150,20 @@ def test_an_unlock_shows_from_its_20th_open_day_before_through_its_day():
     assert D.unlock_windows(small, stocks, days, days["date"][40]).height == 0
 
 
+def test_an_unlock_told_again_counts_once_from_its_first_notice():
+    # 11-11: one row a notice; the reminder a few days before repeats the first one's shares, to another precision
+    days = series(80, start=date(2026, 1, 5))
+    stocks = pl.DataFrame({"listing_id": ["CN:600010"], "list_date": [date(2020, 1, 2)], "td0": [-10_000]}, schema_overrides={"td0": pl.Int64})
+    u = unl([("CN:600010", days["date"][50], "甲", "定增股份", days["date"][0], 1e6, 6.0, "t"),
+             ("CN:600010", days["date"][50], "甲", "定增股份", days["date"][45], 1e6, 6.000001, "t")])
+    w = D.unlock_windows(u, stocks, days, days["date"][46])
+    assert w["ratio"].to_list() == [6.0] and w["ann_date"].to_list() == [days["date"][0]]
+
+
 def test_an_unlock_announced_inside_the_window_is_new_that_day(paths):
     st, days = store_with(paths)
     u = unl([("CN:600001", days[120], "甲", "首发原始股", days[110], 1e7, 8.0, "t")])
-    st.publish({"unlocks": u}, as_of=days[-1])
+    st.publish({"unlock_notices": u}, as_of=days[-1])
     before = D.active(st, ["CN:600001"], days[109])["warnings"]
     on = D.active(st, ["CN:600001"], days[110])["warnings"]["CN:600001"]
     after = D.active(st, ["CN:600001"], days[111])["warnings"]["CN:600001"]
@@ -207,7 +217,7 @@ def test_other_markets_and_beijing_are_not_covered(paths):
 def test_unlocks_from_is_the_first_stored_unlock_day(paths):
     st, days = store_with(paths)
     assert D.active(st, ["CN:600001"])["unlocks_from"] is None
-    st.publish({"unlocks": unl([("CN:000002", days[90], "甲", "定增股份", days[80], 1e6, 1.0, "t")])}, as_of=days[-1])
+    st.publish({"unlock_notices": unl([("CN:000002", days[90], "甲", "定增股份", days[80], 1e6, 1.0, "t")])}, as_of=days[-1])
     assert D.active(st, ["CN:600001"])["unlocks_from"] == days[90].isoformat()
 
 

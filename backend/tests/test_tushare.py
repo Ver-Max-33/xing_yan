@@ -274,28 +274,60 @@ def test_moneyflow_amounts_in_yuan_and_every_board_kept():
     assert m["buy_sm"] == 1_000_000 and m["net_mf"] == -125_000                         # 万元 → yuan
 
 
-def test_unlocks_ask_each_day_around_the_update_and_keep_the_first_announcement():
+# share_float as Tushare answers it since 2026-11 (checked 11-11): by announcement day or by stock only
+NEEDS_DAY = {"code": 50101, "msg": "参数校验失败, ts_code和ann_date必填一项"}
+
+
+def share_float(notices):
+    """notices: announcement day (YYYYMMDD) -> its rows."""
+    return lambda params: notices.get(params["ann_date"], []) if params.get("ann_date") or params.get("ts_code") else NEEDS_DAY
+
+
+def notice(ann, float_date, holder="某创投", share_type="首发原始股", ratio=12.0):
+    return {"ts_code": "688001.SH", "ann_date": ann, "float_date": float_date, "float_share": ratio * 1e7, "float_ratio": ratio,
+            "holder_name": holder, "share_type": share_type}
+
+
+def test_unlock_notices_are_asked_by_announcement_day_since_the_last_update_and_a_week_again():
+    # you, 11-11: 「更新出错：tushare 50101: 参数校验失败, ts_code和ann_date必填一项」 — a day of unlocks is refused now
     calls = []
-
-    def rows(params):
-        if params["float_date"] != "20261020":
-            return []
-        return [{"ts_code": "688001.SH", "ann_date": "20261012", "float_date": "20261020", "float_share": 2.666667e8, "float_ratio": 12.0,
-                 "holder_name": "某创投", "share_type": "首发原始股"},
-                {"ts_code": "688001.SH", "ann_date": "20250918", "float_date": "20261020", "float_share": 2.66666667e8, "float_ratio": 12.0,
-                 "holder_name": "某创投", "share_type": "首发原始股"},
-                {"ts_code": "688001.SH", "ann_date": "20250918", "float_date": "20261020", "float_share": 1e6, "float_ratio": 0.05,
-                 "holder_name": None, "share_type": None}]
-    out = conform(provider({"share_float": rows}, calls=calls).fetch("unlocks", "all", DAY, DAY)["unlocks"], "unlocks").sort("holder")
-    asked = sorted(p["float_date"] for api, p in calls if api == "share_float")
-    assert len(asked) == 68 and asked[0] == "20260923" and asked[-1] == "20261129"   # a week back, two months ahead, one day a call
-    assert out.select("holder", "share_type").rows() == [("", ""), ("某创投", "首发原始股")]   # nameless holder kept, not dropped
-    assert out.filter(pl.col("holder") == "某创投")["ann_date"].to_list() == [date(2025, 9, 18)]   # the first announcement wins
+    first, again = notice("20260925", "20261020"), notice("20260929", "20261020", ratio=12.000001)   # the same unlock told again
+    nameless = notice("20260925", "20261020", holder=None, share_type=None, ratio=0.05)
+    p = provider({"share_float": share_float({"20260925": [first, nameless], "20260929": [again]})}, calls=calls)
+    out = conform(p.fetch("unlock_notices", "all", DAY, DAY)["unlock_notices"], "unlock_notices")
+    asked = sorted(c["ann_date"] for api, c in calls if api == "share_float")
+    assert asked == [f"202609{d}" for d in range(23, 31)]          # every calendar day (a Saturday has notices): a week again
+    assert out.sort("holder", "ann_date").select("holder", "share_type", "ann_date").rows() == [   # nameless holder kept
+        ("", "", date(2026, 9, 25)), ("某创投", "首发原始股", date(2026, 9, 25)), ("某创投", "首发原始股", date(2026, 9, 29))]
 
 
-def test_probe_covers_moneyflow_and_unlocks():
+def test_the_first_fetch_asks_six_years_and_keeps_the_unlocks_from_a_year_back():
+    # an unlock older than that may have had its first notice before the six years: its day would be wrong, so it is left out
+    from wb.data.providers.tushare import UNLOCK_LOOKBACK
+    calls, since = [], DAY - UNLOCK_LOOKBACK
+    p = provider({"share_float": share_float({
+        f"{since:%Y%m%d}": [notice(f"{since:%Y%m%d}", "20291231", holder="甲")],   # three years ahead: kept
+        "20240105": [notice("20240105", "20240712", holder="乙")],                  # two years back: left out
+        "20251010": [notice("20251010", "20260410", holder="丙")]})}, calls=calls)   # half a year back: kept
+    out = p.fetch("unlock_notices", "all", date(2016, 10, 10), DAY)["unlock_notices"]   # its history: from the first bar
+    asked = sorted(c["ann_date"] for api, c in calls if api == "share_float")
+    assert len(asked) == UNLOCK_LOOKBACK.days + 1 and asked[0] == f"{since:%Y%m%d}" and asked[-1] == "20260930"
+    assert sorted(out["holder"].to_list()) == ["丙", "甲"]
+
+
+def test_a_per_minute_refusal_in_tushares_other_wording_waits_and_asks_again():
+    # 10-13: most APIs refuse with "频率超限(200次/分钟)", which read as an error: the six years' fetch would stop half way
+    answers = iter([{"code": 40203, "msg": "抱歉，您访问接口(share_float)频率超限(200次/分钟)，权限的具体详情访问：https://tushare.pro"}])
+    p = provider({"share_float": lambda params: next(answers, [notice(params["ann_date"], "20261020")])})
+    assert p.fetch("unlock_notices", "all", DAY, DAY)["unlock_notices"].height == 8 and p.http.limiter.per_minute == 200
+    from wb.data.providers.tushare import RateLimited, _error
+    assert _error(40203, "抱歉，您访问接口(daily)频率超限（500次/分钟）").per_minute == 500
+    assert isinstance(_error(40203, "抱歉，您每分钟最多访问该接口50次，权限的具体详情访问：…"), RateLimited)
+
+
+def test_probe_covers_moneyflow_and_unlock_notices():
     probes = {p.dataset: p for p in provider({}, denied={"moneyflow"}).probe()}
-    assert not probes["moneyflow"].available and probes["unlocks"].available
+    assert not probes["moneyflow"].available and probes["unlock_notices"].available
 
 
 def test_float_holders_ask_one_report_period_of_every_company_each_holder_once_a_list():

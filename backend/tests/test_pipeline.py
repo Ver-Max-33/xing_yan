@@ -666,13 +666,13 @@ def test_a_weekly_dataset_stored_before_the_catalog_gained_a_column_comes_again_
 
 
 class FlowCN(FakeJP):
-    """FakeJP's bars as 沪深 stocks, with money flow and unlocks when `flow` is on (the catalog gained them)."""
+    """FakeJP's bars as 沪深 stocks, with money flow and unlock notices when `flow` is on (the catalog gained them)."""
     name, market = "tushare", "CN"
 
     def __init__(self, flow=True, scale=1.0, **kw):
         super().__init__(**kw)
         self.flow, self.scale = flow, scale
-        self.unit_kinds = {**FakeJP.unit_kinds, **({"moneyflow": "date", "unlocks": "all", "float_holders": "period"} if flow else {})}
+        self.unit_kinds = {**FakeJP.unit_kinds, **({"moneyflow": "date", "unlock_notices": "all", "float_holders": "period"} if flow else {})}
         self.starts = {}
 
     def fetch(self, dataset, unit, start, end):
@@ -689,9 +689,10 @@ class FlowCN(FakeJP):
                                                **{f"{s}_{k}": [25.0 * (self.scale if s == "buy" else 1.0)] * 3
                                                   for s in ("buy", "sell") for k in ("sm", "md", "lg", "elg")},
                                                "source": ["tushare"] * 3})}
-        if dataset == "unlocks":
+        if dataset == "unlock_notices":
             self.calls.append((dataset, end.isoformat()))
-            return {"unlocks": pl.DataFrame({"listing_id": ["CN:600519"], "float_date": [end + timedelta(days=20)], "holder": ["某股东"],
+            self.starts.setdefault(dataset, set()).add(start)
+            return {"unlock_notices": pl.DataFrame({"listing_id": ["CN:600519"], "float_date": [end + timedelta(days=20)], "holder": ["某股东"],
                                              "share_type": ["定增股份"], "ann_date": [end], "float_share": [1e6], "float_ratio": [6.0],
                                              "source": ["tushare"]})}
         out = super().fetch(dataset, unit, start, end)
@@ -723,7 +724,19 @@ def test_money_flow_comes_with_its_whole_history_once_then_day_by_day(paths):
     prov2 = FlowCN()
     cn(paths, prov2).update(DAYS[4], wait=False)
     assert [u for ds, u in prov2.calls if ds == "moneyflow"] == [DAYS[4].isoformat()]
-    assert p.store.read("moneyflow").height == 15 and p.store.read("unlocks").height == 2   # one unlock row per update's window
+    assert p.store.read("moneyflow").height == 15 and p.store.read("unlock_notices").height == 2   # one notice row per update
+
+
+def test_unlock_notices_come_with_their_history_once_then_from_the_day_after_the_last_snapshot(paths):
+    # 11-11: share_float answers by announcement day only: the first update asks from the first bar (the provider keeps
+    # that to six years), later ones from the day after the last snapshot (and a week again)
+    cn(paths, FlowCN(flow=False)).backfill(DAYS[0], DAYS[2])
+    prov = FlowCN()
+    cn(paths, prov).update(DAYS[3], wait=False)
+    assert prov.starts["unlock_notices"] == {DAYS[0]}
+    prov2 = FlowCN()
+    cn(paths, prov2).update(DAYS[4], wait=False)
+    assert prov2.starts["unlock_notices"] == {DAYS[4]}
 
 
 def test_float_holders_come_by_report_period_their_history_once(paths):
@@ -746,10 +759,11 @@ def test_a_dataset_the_catalog_gained_comes_with_its_history_on_a_day_off_too(pa
     cn(paths, FlowCN(flow=False)).backfill(DAYS[0], DAYS[2])
     prov = FlowCN()
     p = cn(paths, prov)
-    assert p.missing_history() == ["moneyflow", "float_holders"]
+    assert p.missing_history() == ["moneyflow", "float_holders", "unlock_notices"]
     p.update(DAYS[4] + timedelta(days=1), wait=False)                      # Saturday
     latest = p.store.latest()
-    assert latest.manifest.get("moneyflow") and latest.manifest.get("float_holders") and latest.as_of == DAYS[2]
+    assert latest.manifest.get("moneyflow") and latest.manifest.get("float_holders") and latest.manifest.get("unlock_notices")
+    assert latest.as_of == DAYS[2]
     assert sorted(u for ds, u in prov.calls if ds == "moneyflow") == [d.isoformat() for d in DAYS[:3]]
     assert not [u for ds, u in prov.calls if ds == "bars_1d"]               # the days missed wait for a trading day
     assert p.missing_history() == []
